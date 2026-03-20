@@ -66,7 +66,7 @@ class AriaUDPProtocol(asyncio.DatagramProtocol):
         await post_to_jit(webhook)
 
 
-async def start_aria_udp(host: str = "127.0.0.1", port: int = 5140) -> None:
+async def start_aria_udp(host: str = "0.0.0.0", port: int = 5140) -> None:
     loop = asyncio.get_event_loop()
 
     await event_bus.publish(
