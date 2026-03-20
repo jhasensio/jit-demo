@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VMware Zero Trust — JIT Access PoC</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+  <nav id="sidebar">
+    <div class="sb-brand">
+      <span class="sb-logo">ZT</span>
+      <span class="sb-name">Zero Trust</span>
+    </div>
+
+    <div class="sb-nav">
+      <button class="sb-item active" data-view="demo">
+        <span class="sb-icon">◈</span>
+        <span class="sb-label">Architecture<br>Demo</span>
+      </button>
+      <button class="sb-item" data-view="jit">
+        <span class="sb-icon">⚡</span>
+        <span class="sb-label">JIT<br>Middleware</span>
+      </button>
+      <button class="sb-item" data-view="connections">
+        <span class="sb-icon">⬡</span>
+        <span class="sb-label">Connections</span>
+      </button>
+    </div>
+
+    <div class="sb-footer">
+      <span id="sse-status" class="disconnected">○ Disconnected</span>
+    </div>
+  </nav>
+
+  <!-- ── Content area ────────────────────────────────────────────────────── -->
+  <div id="content">
+
+    <!-- ── View: Architecture Demo ─────────────────────────────────────── -->
+    <div id="view-demo" class="view active">
+
+      <section id="diagram-section">
+        <header>
+          <h1>VMware Zero Trust — JIT Access Workflow</h1>
+        </header>
+
+        <div id="diagram">
+
+          <!-- Row 1: main flow -->
+          <div class="diagram-row">
+
+            <div class="diagram-box" id="box-user">
+              External User
+              <span class="box-label">Actor</span>
+            </div>
+
+            <div class="arrow" id="arrow-user-idsp">
+              <div class="arrowline"></div>
+              <div class="arrowhead"></div>
+            </div>
+
+            <div class="diagram-box clickable" id="box-idsp"
+                 onclick="openIDSPModal()" title="Click to send a PAM authentication event">
+              IDSP Simulator
+              <span class="box-label">IDSP · Syslog</span>
+            </div>
+
+            <div class="arrow" id="arrow-idsp-aria">
+              <div class="arrowline"></div>
+              <div class="arrowhead"></div>
+            </div>
+
+            <div class="diagram-box" id="box-aria">
+              Aria SIEM
+              <span class="box-label">UDP :5140 · Parser</span>
+            </div>
+
+            <div class="arrow" id="arrow-aria-jit">
+              <div class="arrowline"></div>
+              <div class="arrowhead"></div>
+            </div>
+
+            <div class="diagram-box" id="box-jit">
+              JIT Middleware
+              <span class="box-label">Webhook · Enforcer</span>
+            </div>
+
+          </div><!-- /row1 -->
+
+          <!-- Down arrow from JIT to enforcement boxes -->
+          <div class="diagram-row" style="justify-content:flex-end; padding-right: 65px;">
+            <div style="display:flex; flex-direction:column; align-items:center; width:130px;">
+              <div style="width:2px; height:18px; background:var(--arrow-color);"></div>
+              <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--arrow-color);"></div>
+            </div>
+          </div>
+
+          <!-- Row 2: enforcement targets -->
+          <div class="diagram-row enforcement-row" style="justify-content:flex-end; gap:10px;">
+            <div style="flex:1 1 0;"></div>
+
+            <div class="diagram-box" id="box-gfw">
+              NSX GFW
+              <span class="box-label">Gateway Firewall</span>
+            </div>
+
+            <div class="diagram-box" id="box-dfw">
+              NSX DFW
+              <span class="box-label">Distributed Firewall</span>
+            </div>
+
+            <div class="diagram-box" id="box-avi">
+              AVI LB
+              <span class="box-label">Load Balancer</span>
+            </div>
+
+          </div><!-- /row2 -->
+
+        </div><!-- /diagram -->
+      </section>
+
+      <section id="console-section">
+        <div class="console-header">
+          <span class="console-title">Event Stream Console</span>
+          <div class="console-controls">
+            <label>
+              <input type="checkbox" id="autoscroll" checked />
+              Auto-scroll
+            </label>
+            <button class="btn-clear" onclick="clearConsole()">Clear</button>
+          </div>
+        </div>
+        <div id="console-output"></div>
+      </section>
+
+    </div><!-- /view-demo -->
+
+
+    <!-- ── View: JIT Middleware ─────────────────────────────────────────── -->
+    <div id="view-jit" class="view">
+
+      <div class="jit-page-header">
+        <div>
+          <h2>JIT Middleware <span class="dim">— Direct Access Request</span></h2>
+          <p>Send enforcement payloads directly to the JIT Middleware API, bypassing the IDSP&nbsp;→&nbsp;Aria pipeline.</p>
+        </div>
+        <span class="endpoint-pill">POST /jit/direct</span>
+      </div>
+
+      <div class="jit-body">
+
+        <!-- Left column: form + request preview -->
+        <div class="jit-left">
+
+          <div class="panel">
+            <div class="panel-hd">Request Builder</div>
+            <div class="panel-bd">
+              <form id="jit-form" onsubmit="submitJITDirect(event)">
+
+                <div class="form-group">
+                  <label for="jf-username">Username</label>
+                  <input type="text" id="jf-username" value="jsmith"
+                         autocomplete="off" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="jf-source-ip">Source IP Address</label>
+                  <input type="text" id="jf-source-ip" value="10.0.1.50"
+                         pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
+                         title="Valid IPv4 address"
+                         autocomplete="off" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="jf-target-app">Target Application</label>
+                  <input type="text" id="jf-target-app" value="APP_PROD_01"
+                         autocomplete="off" required />
+                </div>
+
+                <div class="form-group">
+                  <label for="jf-action">Action</label>
+                  <select id="jf-action">
+                    <option value="LOGIN">LOGIN — Grant access (add IP)</option>
+                    <option value="LOGOUT">LOGOUT — Revoke access (clear IP)</option>
+                  </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary jit-submit-btn"
+                        id="jit-submit">
+                  Send Request
+                </button>
+                <p id="jit-status"></p>
+
+              </form>
+            </div>
+          </div><!-- /Request Builder panel -->
+
+          <div class="panel">
+            <div class="panel-hd">
+              <span>Request Body <span class="badge-live">live</span></span>
+              <button class="btn-copy-curl" id="btn-copy-curl" onclick="copyCURL()" title="Copy as cURL command">
+                Copy cURL
+              </button>
+            </div>
+            <div class="panel-bd">
+              <div class="code-block" id="jit-request-preview"></div>
+            </div>
+          </div><!-- /Request Preview panel -->
+
+        </div><!-- /jit-left -->
+
+        <!-- Right column: enforcement cards + event log -->
+        <div class="jit-right">
+
+          <div class="panel">
+            <div class="panel-hd">Enforcement Payloads</div>
+            <div class="panel-bd">
+              <div class="payload-grid">
+
+                <div class="payload-card" id="card-gfw">
+                  <div class="card-hd">
+                    <span class="card-sys">NSX Gateway Firewall</span>
+                    <span class="method-badge">PATCH</span>
+                  </div>
+                  <div class="card-url" id="url-gfw"></div>
+                  <div class="card-body" id="body-gfw">
+                    <span class="placeholder">Awaiting request…</span>
+                  </div>
+                </div>
+
+                <div class="payload-card" id="card-dfw">
+                  <div class="card-hd">
+                    <span class="card-sys">NSX Distributed Firewall</span>
+                    <span class="method-badge">PATCH</span>
+                  </div>
+                  <div class="card-url" id="url-dfw"></div>
+                  <div class="card-body" id="body-dfw">
+                    <span class="placeholder">Awaiting request…</span>
+                  </div>
+                </div>
+
+                <div class="payload-card" id="card-avi">
+                  <div class="card-hd">
+                    <span class="card-sys">AVI Load Balancer</span>
+                    <span class="method-badge method-put">PUT</span>
+                  </div>
+                  <div class="card-url" id="url-avi"></div>
+                  <div class="card-body" id="body-avi">
+                    <span class="placeholder">Awaiting request…</span>
+                  </div>
+                </div>
+
+              </div><!-- /payload-grid -->
+            </div>
+          </div><!-- /Enforcement Payloads panel -->
+
+          <div class="panel panel-flex">
+            <div class="panel-hd">
+              Event Stream
+              <div class="console-controls">
+                <label>
+                  <input type="checkbox" id="jit-autoscroll" checked />
+                  Auto-scroll
+                </label>
+                <button class="btn-clear" onclick="clearJITConsole()">Clear</button>
+              </div>
+            </div>
+            <div class="panel-bd panel-scroll">
+              <div id="jit-console"></div>
+            </div>
+          </div><!-- /Event Stream panel -->
+
+        </div><!-- /jit-right -->
+
+      </div><!-- /jit-body -->
+
+      <!-- ── Enforce footer ──────────────────────────────────────────────── -->
+      <div id="enforce-footer">
+        <div class="enforce-conns">
+          <div class="conn-indicator">
+            <span class="conn-dot conn-dot-unconfigured" id="dot-nsx"></span>
+            <span class="conn-label">NSX</span>
+            <span class="conn-host" id="host-nsx">—</span>
+          </div>
+          <div class="conn-indicator">
+            <span class="conn-dot conn-dot-unconfigured" id="dot-avi"></span>
+            <span class="conn-label">AVI</span>
+            <span class="conn-host" id="host-avi">—</span>
+          </div>
+        </div>
+        <div class="enforce-results" id="enforce-results"></div>
+        <div class="enforce-actions">
+          <button class="btn btn-enforce" id="btn-enforce"
+                  onclick="runLiveEnforce()" disabled>
+            &#9654; Enforce Live
+          </button>
+        </div>
+      </div><!-- /enforce-footer -->
+
+    </div><!-- /view-jit -->
+
+
+    <!-- ── View: Connections ─────────────────────────────────────────────── -->
+    <div id="view-connections" class="view">
+
+      <div class="conn-page-header">
+        <div>
+          <h2>Connections <span class="dim">— Infrastructure Credentials</span></h2>
+          <p>Configure credentials for NSX Manager and AVI Controller to enable live policy enforcement.</p>
+        </div>
+      </div>
+
+      <div class="connections-body">
+
+        <!-- NSX Manager panel -->
+        <div class="panel conn-panel">
+          <div class="panel-hd">
+            NSX Manager
+            <span class="conn-badge conn-badge-unconfigured" id="badge-nsx">unconfigured</span>
+          </div>
+          <div class="panel-bd">
+            <form id="nsx-form" onsubmit="saveNSXCreds(event)">
+
+              <div class="form-group">
+                <label for="nsx-host">Host / IP</label>
+                <input type="text" id="nsx-host"
+                       placeholder="https://nsx-manager.example.com"
+                       autocomplete="off" required />
+              </div>
+
+              <div class="form-group">
+                <label for="nsx-user">Username</label>
+                <input type="text" id="nsx-user" placeholder="admin"
+                       autocomplete="off" required />
+              </div>
+
+              <div class="form-group">
+                <label for="nsx-pass">Password</label>
+                <input type="password" id="nsx-pass" placeholder="••••••••"
+                       autocomplete="new-password" required />
+              </div>
+
+              <div class="form-group form-group-inline">
+                <label>
+                  <input type="checkbox" id="nsx-verify-ssl" />
+                  Verify SSL Certificate
+                </label>
+              </div>
+
+              <button type="submit" class="btn btn-primary conn-submit-btn"
+                      id="btn-nsx-save">
+                Save &amp; Test
+              </button>
+              <p id="nsx-test-status" class="conn-test-status"></p>
+
+            </form>
+          </div>
+        </div><!-- /NSX panel -->
+
+        <!-- AVI Controller panel -->
+        <div class="panel conn-panel">
+          <div class="panel-hd">
+            AVI Controller
+            <span class="conn-badge conn-badge-unconfigured" id="badge-avi">unconfigured</span>
+          </div>
+          <div class="panel-bd">
+            <form id="avi-form" onsubmit="saveAVICreds(event)">
+
+              <div class="form-group">
+                <label for="avi-host">Host / IP</label>
+                <input type="text" id="avi-host"
+                       placeholder="https://avi-controller.example.com"
+                       autocomplete="off" required />
+              </div>
+
+              <div class="form-group">
+                <label for="avi-user">Username</label>
+                <input type="text" id="avi-user" placeholder="admin"
+                       autocomplete="off" required />
+              </div>
+
+              <div class="form-group">
+                <label for="avi-pass">Password</label>
+                <input type="password" id="avi-pass" placeholder="••••••••"
+                       autocomplete="new-password" required />
+              </div>
+
+              <div class="form-group">
+                <label for="avi-tenant">Tenant</label>
+                <input type="text" id="avi-tenant" placeholder="admin"
+                       value="admin" autocomplete="off" />
+              </div>
+
+              <div class="form-group form-group-inline">
+                <label>
+                  <input type="checkbox" id="avi-verify-ssl" />
+                  Verify SSL Certificate
+                </label>
+              </div>
+
+              <button type="submit" class="btn btn-primary conn-submit-btn"
+                      id="btn-avi-save">
+                Save &amp; Test
+              </button>
+              <p id="avi-test-status" class="conn-test-status"></p>
+
+            </form>
+          </div>
+        </div><!-- /AVI panel -->
+
+      </div><!-- /connections-body -->
+
+    </div><!-- /view-connections -->
+
+  </div><!-- /content -->
+
+</div><!-- /app -->
+
+<!-- ── IDSP Modal ─────────────────────────────────────────────────────────── -->
+<div id="modal-overlay">
+  <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 id="modal-title">IDSP — Authentication Event</h2>
+    <p class="subtitle">Simulates an IDSP syslog → Aria SIEM → JIT enforcement pipeline</p>
+
+    <form id="idsp-form" onsubmit="submitIDSP(event)">
+
+      <div class="form-group">
+        <label for="f-username">Username</label>
+        <input type="text" id="f-username" placeholder="john.doe" value="jsmith"
+               required autocomplete="off" />
+      </div>
+
+      <div class="form-group">
+        <label for="f-source-ip">Source IP Address</label>
+        <input type="text" id="f-source-ip" placeholder="192.168.1.100" value="10.0.1.50"
+               required autocomplete="off"
+               pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
+               title="Enter a valid IPv4 address" />
+      </div>
+
+      <div class="form-group">
+        <label for="f-target-app">Target Application / Resource</label>
+        <input type="text" id="f-target-app" placeholder="APP_PROD_01" value="APP_PROD_01"
+               required autocomplete="off" />
+      </div>
+
+      <div class="form-group">
+        <label for="f-action">Action</label>
+        <select id="f-action">
+          <option value="LOGIN">LOGIN — Grant access (add IP)</option>
+          <option value="LOGOUT">LOGOUT — Revoke access (clear IP)</option>
+        </select>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" onclick="closeIDSPModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit">Send PAM Event</button>
+      </div>
+
+      <p id="submit-status" style="margin-top:10px; font-size:0.8rem; text-align:right;"></p>
+    </form>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
