@@ -112,11 +112,11 @@ pip install -r requirements.txt
 ## Running
 
 ```bash
-# Development (auto-reload on file changes)
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+# Simplest — host/port/reload are baked into main.py
+python main.py
 
-# Production-style (no reload)
-uvicorn main:app --host 0.0.0.0 --port 8000
+# Or call uvicorn directly (same effect)
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Open **http://localhost:8000** in a browser.

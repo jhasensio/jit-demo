@@ -44,3 +44,8 @@ async def index(request: Request) -> HTMLResponse:
 @app.get("/events")
 async def sse_events(request: Request):
     return await sse_endpoint(request)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
