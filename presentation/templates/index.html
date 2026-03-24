@@ -425,14 +425,6 @@
         <span class="endpoint-pill">POST /jit/direct</span>
       </div>
 
-      <!-- ── Network Topology Map ───────────────────────────────────────── -->
-      <div class="panel panel-network-map">
-        <div class="panel-hd">Network Topology Map</div>
-        <div class="panel-bd panel-bd--map">
-          <img src="/static/network-topology.svg" alt="Network Topology" class="network-map-img" />
-        </div>
-      </div>
-
       <div class="jit-body">
 
         <!-- Left column: form + request preview -->
@@ -508,8 +500,16 @@
 
         </div><!-- /jit-left -->
 
-        <!-- Right column: enforcement cards + event log -->
+        <!-- Right column: topology map + enforcement cards + event log -->
         <div class="jit-right">
+
+          <!-- ── Network Topology Map ─────────────────────────────────── -->
+          <div class="panel panel-network-map">
+            <div class="panel-hd">Network Topology Map</div>
+            <div class="panel-bd panel-bd--map">
+              <img src="/static/network-topology.svg" alt="Network Topology" class="network-map-img" />
+            </div>
+          </div>
 
           <div class="panel">
             <div class="panel-hd">Enforcement Payloads</div>
