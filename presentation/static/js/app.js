@@ -1513,13 +1513,14 @@ let _nsxTier0s        = [];
 let _nsxTier1s        = [];
 
 // ─── AVI Policy view ──────────────────────────────────────────────────────────
-let _cachedIpGroups  = [];
-let _cachedVsList    = [];    // full VS objects including network_security_policy_ref
-let _expandedNspData = null;
-let _nspAllResults   = [];
-let _nspPage         = 0;
-let _nspRowsPerPage  = 10;
-let _nspSearchTerm   = "";
+let _cachedIpGroups   = [];
+let _cachedVsList     = [];    // full VS objects including network_security_policy_ref
+let _expandedNspData  = null;
+let _nspAllResults    = [];
+let _nspPage          = 0;
+let _nspRowsPerPage   = 10;
+let _nspSearchTerm    = "";
+let _aviOnboardPending = null;  // form data saved between preview and confirm
 
 // ── Modal helpers ──────────────────────────────────────────────────────────────
 function openModal(html) {
@@ -2110,13 +2111,22 @@ async function changeRuleGroupRef(uuid, ruleIdx, newRef) {
 }
 
 async function deleteNsp(uuid) {
-  // Check VS references — AVI will return 403 if still attached
+  // Fetch full policy details to collect group refs before deletion
   let referredVs = [];
+  let groupRefs  = [];
   try {
     const refRes = await fetch(`/avi-policy/networksecuritypolicies/${uuid}/references`);
     if (refRes.ok) {
       const refData = await refRes.json();
       referredVs = refData.referred_by_vs || [];
+      // Collect all unique ipaddrgroup refs from every rule
+      const rules = refData.result?.rules || [];
+      const seen  = new Set();
+      for (const rule of rules) {
+        for (const ref of (rule.match?.client_ip?.group_refs || [])) {
+          if (ref && !seen.has(ref)) { seen.add(ref); groupRefs.push(ref); }
+        }
+      }
     }
   } catch (_) {}
 
@@ -2126,23 +2136,34 @@ async function deleteNsp(uuid) {
     return;
   }
 
-  const ok = await showConfirm("Delete this policy from AVI? This cannot be undone.");
+  const groupNote = groupRefs.length
+    ? `<br><br>The <strong>${groupRefs.length}</strong> associated IP address group${groupRefs.length > 1 ? "s" : ""} will also be deleted.`
+    : "";
+  const ok = await showConfirm(`Delete this Network Security Policy from AVI?${groupNote}<br><br>This cannot be undone.`);
   if (!ok) return;
 
   try {
     const res = await fetch(`/avi-policy/networksecuritypolicies/${uuid}`, { method: "DELETE" });
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;
-      try {
-        const err = await res.json();
-        msg = err.detail || err.error || msg;
-      } catch (_) {}
+      try { const err = await res.json(); msg = err.detail || err.error || msg; } catch (_) {}
       showToast("Delete failed: " + msg, "error");
       return;
     }
+
+    // Delete associated IP address groups (best-effort, non-blocking)
+    if (groupRefs.length) {
+      await Promise.allSettled(groupRefs.map(ref => {
+        const groupUuid = ref.split("/").filter(Boolean).pop();
+        return groupUuid
+          ? fetch(`/avi-policy/ipaddrgroups/${groupUuid}`, { method: "DELETE" })
+          : Promise.resolve();
+      }));
+    }
+
     closeModal();
-    showToast("Policy deleted", "success");
-    await Promise.all([refreshAviPolicies(), refreshAviVirtualServices()]);
+    showToast(`Policy deleted${groupRefs.length ? ` along with ${groupRefs.length} IP group${groupRefs.length > 1 ? "s" : ""}` : ""}.`, "success");
+    await Promise.all([refreshAviPolicies(), refreshAviIpAddrGroups(), refreshAviVirtualServices()]);
   } catch (ex) {
     showToast("Request failed: " + ex.message, "error");
   }
@@ -2185,13 +2206,13 @@ function onAviOnboardAppChange() {
   if (wrap)  wrap.style.display = "";
 }
 
-async function submitAviOnboarding(e) {
+// ─── AVI Application Onboarding — Phase 1: Preview Rules ─────────────────────
+
+function previewAviOnboardRules(e) {
   e.preventDefault();
   const appName   = document.getElementById("avi-onboard-target-app")?.value.trim();
   const vsUuid    = document.getElementById("avi-onboard-vs")?.value.trim();
   const bypassRaw = document.getElementById("avi-onboard-bypass-ips")?.value || "";
-  const statusEl  = document.getElementById("avi-onboard-status");
-  const setStatus = msg => { if (statusEl) statusEl.textContent = msg; };
 
   if (!appName || !vsUuid) { showToast("Select a target application and Virtual Service.", "error"); return; }
 
@@ -2205,7 +2226,98 @@ async function submitAviOnboarding(e) {
   const vsName = vsEl?.options[vsEl.selectedIndex]?.dataset.name || vsUuid;
   const vsVip  = vsEl?.options[vsEl.selectedIndex]?.dataset.vip  || "";
 
-  const submitBtn = e.target.querySelector('button[type="submit"]');
+  _aviOnboardPending = { appName, vsUuid, vsName, vsVip, bypassRaw, policyName, bypassGrp, jitGrp, prefix };
+
+  const bypassAddrs = bypassRaw.split(",").map(s => s.trim()).filter(Boolean);
+  const ruleDefs = [
+    {
+      index: 0,
+      name:  `${prefix}-bypass-rule`,
+      match: bypassAddrs.length
+        ? `Client IP in ${bypassGrp} (${bypassAddrs.join(", ")})`
+        : `Client IP in ${bypassGrp} (empty — no bypass hosts)`,
+      defaultAction: "ALLOW",
+    },
+    {
+      index: 1,
+      name:  `${prefix}-JIT-active-users-allow-list-rule`,
+      match: `Client IP in ${jitGrp}`,
+      defaultAction: "ALLOW",
+    },
+    {
+      index: 2,
+      name:  "cleanup-deny-all-rule",
+      match: "All other traffic (0.0.0.0/0 catch-all)",
+      defaultAction: "DENY",
+    },
+  ];
+
+  openModal(`
+    <div class="modal-title">Preview Rules — <span class="muted-sm">${_esc(policyName)}</span></div>
+    <p style="font-size:var(--text-sm);color:var(--text-muted);margin:0 0 14px">
+      Review the 3 rules that will be created. Adjust enable, logging, and action if needed before confirming.
+    </p>
+    <div class="rule-preview-cards">
+      ${ruleDefs.map(r => `
+        <div class="rule-preview-card">
+          <div class="rpc-header">
+            <span class="rpc-index">Rule ${r.index + 1}</span>
+            <span class="rpc-name">${_esc(r.name)}</span>
+          </div>
+          <div class="rpc-match">${_esc(r.match)}</div>
+          <div class="rpc-controls">
+            <label class="rpc-check">
+              <input type="checkbox" id="rc-${r.index}-enable" checked> Enable
+            </label>
+            <label class="rpc-check">
+              <input type="checkbox" id="rc-${r.index}-log" checked> Log
+            </label>
+            <div class="rpc-action-wrap">
+              <span class="rpc-action-label">Action</span>
+              <select id="rc-${r.index}-action" class="rpc-action-select">
+                <option value="NETWORK_SECURITY_POLICY_ACTION_TYPE_ALLOW"
+                  ${r.defaultAction === "ALLOW" ? "selected" : ""}>ALLOW</option>
+                <option value="NETWORK_SECURITY_POLICY_ACTION_TYPE_DENY"
+                  ${r.defaultAction === "DENY" ? "selected" : ""}>DENY</option>
+                <option value="NETWORK_SECURITY_POLICY_ACTION_TYPE_RESET_CONN">RESET_CONN</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+    <div class="confirm-actions" style="margin-top:16px">
+      <button class="btn btn-primary" onclick="confirmAviOnboarding()">Confirm &amp; Create</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>
+  `);
+}
+
+// ─── AVI Application Onboarding — Phase 2: Confirm & execute ─────────────────
+
+async function confirmAviOnboarding() {
+  if (!_aviOnboardPending) return;
+  const pending = _aviOnboardPending;
+  _aviOnboardPending = null;
+
+  // Collect rule edits from the preview modal before closing it
+  const ruleEdits = [0, 1, 2].map(i => ({
+    enable: document.getElementById(`rc-${i}-enable`)?.checked ?? true,
+    log:    document.getElementById(`rc-${i}-log`)?.checked    ?? true,
+    action: document.getElementById(`rc-${i}-action`)?.value
+      || (i < 2 ? "NETWORK_SECURITY_POLICY_ACTION_TYPE_ALLOW"
+                : "NETWORK_SECURITY_POLICY_ACTION_TYPE_DENY"),
+  }));
+
+  closeModal();
+  await _doAviOnboarding(pending, ruleEdits);
+}
+
+async function _doAviOnboarding(pending, ruleEdits) {
+  const { appName, vsUuid, vsName, vsVip, bypassRaw, policyName, bypassGrp, jitGrp, prefix } = pending;
+  const statusEl  = document.getElementById("avi-onboard-status");
+  const setStatus = msg => { if (statusEl) statusEl.textContent = msg; };
+  const submitBtn = document.querySelector('#avi-onboard-form button[type="submit"]');
   if (submitBtn) submitBtn.disabled = true;
 
   try {
@@ -2221,7 +2333,8 @@ async function submitAviOnboarding(e) {
       showToast("Bypass group error: " + (err.detail || g1Res.status), "error");
       setStatus(""); return;
     }
-    const g1Ref = (await g1Res.json()).body?.url || "";
+    const g1Body = (await g1Res.json()).body || {};
+    const g1Ref  = g1Body.url || "";
 
     // Step 2: create JIT active-users IP group (empty)
     setStatus("Creating JIT active-users IP group…");
@@ -2234,29 +2347,36 @@ async function submitAviOnboarding(e) {
       showToast("JIT group error: " + (err.detail || g2Res.status), "error");
       setStatus(""); return;
     }
-    const g2Ref = (await g2Res.json()).body?.url || "";
+    const g2Body = (await g2Res.json()).body || {};
+    const g2Ref  = g2Body.url || "";
 
-    // Step 3: create Network Security Policy with 3 rules
+    // Step 3: create Network Security Policy with 3 rules (with user-edited settings)
     setStatus("Creating network security policy…");
     const rules = [
       {
         name:   `${prefix}-bypass-rule`,
-        action: "NETWORK_SECURITY_POLICY_ACTION_TYPE_ALLOW",
-        enable: true, index: 0, log: true,
+        action: ruleEdits[0].action,
+        enable: ruleEdits[0].enable,
+        index:  0,
+        log:    ruleEdits[0].log,
         match:  { client_ip: { group_refs: [g1Ref], match_criteria: "IS_IN" } },
         rl_param: {},
       },
       {
         name:   `${prefix}-JIT-active-users-allow-list-rule`,
-        action: "NETWORK_SECURITY_POLICY_ACTION_TYPE_ALLOW",
-        enable: true, index: 1, log: true,
+        action: ruleEdits[1].action,
+        enable: ruleEdits[1].enable,
+        index:  1,
+        log:    ruleEdits[1].log,
         match:  { client_ip: { group_refs: [g2Ref], match_criteria: "IS_IN" } },
         rl_param: {},
       },
       {
         name:   "cleanup-deny-all-rule",
-        action: "NETWORK_SECURITY_POLICY_ACTION_TYPE_DENY",
-        enable: true, index: 2, log: true,
+        action: ruleEdits[2].action,
+        enable: ruleEdits[2].enable,
+        index:  2,
+        log:    ruleEdits[2].log,
         match:  { client_ip: { match_criteria: "IS_IN",
           prefixes: [{ ip_addr: { addr: "0.0.0.0", type: "V4" }, mask: 0 }] } },
         rl_param: {},
@@ -2271,9 +2391,11 @@ async function submitAviOnboarding(e) {
       showToast("Policy creation error: " + (err.detail || nspRes.status), "error");
       setStatus(""); return;
     }
-    const nspData  = await nspRes.json();
-    const policyRef  = nspData.body?.url  || "";
-    const policyUuid = policyRef.split("/").filter(Boolean).pop() || "";
+    const nspData    = await nspRes.json();
+    const nspBody    = nspData.body || {};
+    const policyRef  = nspBody.url  || "";
+    // Use uuid field directly from AVI response (more reliable than URL parsing)
+    const policyUuid = nspBody.uuid || policyRef.split("/").filter(Boolean).pop() || "";
 
     // Step 4: attach NSP to Virtual Service
     setStatus("Attaching policy to Virtual Service…");

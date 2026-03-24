@@ -460,6 +460,23 @@ class AVIClient:
             return {"success": False, "body": {}, "error": _INSTALL_MSG}
         return await asyncio.to_thread(self._sync_create_ipgroup, name, addrs)
 
+    async def delete_ipaddrgroup(self, uuid: str) -> dict:
+        """DELETE api/ipaddrgroup/{uuid}."""
+        if not _HAS_SDK:
+            return {"success": False, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_delete_ipgroup, uuid)
+
+    def _sync_delete_ipgroup(self, uuid: str) -> dict:
+        try:
+            session = self._session()
+            r = session.delete(f"ipaddrgroup/{uuid}")
+            success = r.status_code in (200, 204)
+            return {"success": success, "error": None if success else f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
     async def detach_policy_from_vs(self, vs_uuid: str) -> dict:
         """GET VS → remove network_security_policy_ref → PUT back."""
         if not _HAS_SDK:

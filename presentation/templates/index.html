@@ -63,17 +63,21 @@
           <button class="sb-item--leaf" data-view="nsx-policy">vDefend</button>
         </div>
 
-        <button class="sb-item sb-item--child" data-view="active-sessions">
-          <span class="sb-icon">&#9202;</span>
-          <span class="sb-label">Active Sessions</span>
-        </button>
-
         <button class="sb-item sb-item--child" data-view="jit">
           <span class="sb-icon">&#9889;</span>
-          <span class="sb-label">L7 APIM</span>
+          <span class="sb-label">User Authentication (L7)</span>
         </button>
 
       </div>
+
+      <!-- Bottom-pinned -->
+      <div class="sb-group sb-group--bottom">
+        <button class="sb-item sb-item--child" data-view="active-sessions">
+          <span class="sb-icon">&#9202;</span>
+          <span class="sb-label">Active User Sessions</span>
+        </button>
+      </div>
+
     </div>
 
     <div class="sb-footer">
@@ -760,11 +764,11 @@
 
     </div><!-- /view-settings -->
 
-    <!-- ── View: Active Sessions ──────────────────────────────────────────── -->
+    <!-- ── View: Active User Sessions ────────────────────────────────────── -->
     <div id="view-active-sessions" class="view">
       <div class="settings-page-header">
         <div>
-          <h2>Active Sessions <span class="dim">— Live JIT Access</span></h2>
+          <h2>Active User Sessions <span class="dim">— Live JIT Access</span></h2>
           <p>Monitor and revoke active JIT sessions. Kill marks a session inactive in the mock IDSP API.</p>
         </div>
       </div>
@@ -811,7 +815,7 @@
         <div class="panel">
           <div class="panel-hd">Application Onboarding</div>
           <div class="panel-bd">
-            <form id="avi-onboard-form" onsubmit="submitAviOnboarding(event)">
+            <form id="avi-onboard-form" onsubmit="previewAviOnboardRules(event)">
               <div class="form-group">
                 <label for="avi-onboard-target-app">Target Application</label>
                 <select id="avi-onboard-target-app" required onchange="onAviOnboardAppChange()">
@@ -837,7 +841,7 @@
                 <input id="avi-onboard-bypass-ips" type="text" placeholder="e.g. 10.0.0.5, 192.168.1.10" autocomplete="off" />
               </div>
               <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
-                <button type="submit" class="btn btn-primary">Create Network Policy</button>
+                <button type="submit" class="btn btn-primary">Preview Rules</button>
                 <span id="avi-onboard-status" class="status-hint"></span>
               </div>
             </form>

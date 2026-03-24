@@ -79,6 +79,25 @@ async def create_ipaddrgroup(body: dict) -> dict:
     return result
 
 
+@router.delete("/ipaddrgroups/{uuid}")
+async def delete_ipaddrgroup(uuid: str) -> dict:
+    client = _get_avi_client()
+    result = await client.delete_ipaddrgroup(uuid)
+    await event_bus.publish({
+        "level": "SUCCESS" if result["success"] else "ERROR",
+        "domain": "CONNECTIONS",
+        "message": (
+            f"AVI IPAddrGroup '{uuid}' deleted"
+            if result["success"]
+            else f"Failed to delete IPAddrGroup '{uuid}': {result.get('error')}"
+        ),
+        "payload": None,
+    })
+    if not result["success"]:
+        raise HTTPException(status_code=502, detail=result.get("error", "AVI request failed"))
+    return {"deleted": True, "uuid": uuid}
+
+
 @router.get("/networksecuritypolicies/{uuid}")
 async def get_networksecuritypolicy(uuid: str) -> dict:
     client = _get_avi_client()
