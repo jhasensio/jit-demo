@@ -448,9 +448,7 @@
                 <div class="form-group">
                   <label for="jf-target-app">Target Application</label>
                   <select id="jf-target-app" required>
-                    <option value="HR_APP_01">HR_APP_01</option>
-                    <option value="FIN_APP_01">FIN_APP_01</option>
-                    <option value="ENG_APP_01">ENG_APP_01</option>
+                    <option value="">— select target application —</option>
                   </select>
                 </div>
 
@@ -605,6 +603,7 @@
         <button class="stab active" data-stab="connectors" onclick="switchSettingsTab('connectors')">Connectors</button>
         <button class="stab" data-stab="lifecycle" onclick="switchSettingsTab('lifecycle')">Lifecycle</button>
         <button class="stab" data-stab="idsp" onclick="switchSettingsTab('idsp')">IDSP Session API</button>
+        <button class="stab" data-stab="target-apps" onclick="switchSettingsTab('target-apps')">Target Applications</button>
       </div>
 
       <!-- ── Tab: Connectors ── -->
@@ -751,6 +750,25 @@
         </div>
       </div><!-- /stab-idsp -->
 
+      <!-- ── Tab: Target Applications ── -->
+      <div class="stab-panel" id="stab-target-apps">
+        <div class="simple-view-body">
+          <div class="panel">
+            <div class="panel-hd">
+              Target Applications
+              <div class="panel-hd-actions">
+                <button class="btn btn-small btn-primary" onclick="openCreateTargetAppModal()">+ New Application</button>
+              </div>
+            </div>
+            <div class="panel-bd">
+              <div id="target-apps-table-wrap">
+                <span class="placeholder">Loading…</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /stab-target-apps -->
+
     </div><!-- /view-settings -->
 
     <!-- ── View: Active Sessions ──────────────────────────────────────────── -->
@@ -829,9 +847,6 @@
                   <label for="attach-target-app">Target Application</label>
                   <select id="attach-target-app" required>
                     <option value="">— select target application —</option>
-                    <option value="HR_APP_01">HR_APP_01</option>
-                    <option value="FIN_APP_01">FIN_APP_01</option>
-                    <option value="ENG_APP_01">ENG_APP_01</option>
                   </select>
                 </div>
                 <div class="form-group form-group--flush">
@@ -900,9 +915,6 @@
                   <label for="nsx-onboard-target-app">Target Application</label>
                   <select id="nsx-onboard-target-app" required>
                     <option value="">— select target application —</option>
-                    <option value="HR_APP_01">HR_APP_01</option>
-                    <option value="FIN_APP_01">FIN_APP_01</option>
-                    <option value="ENG_APP_01">ENG_APP_01</option>
                   </select>
                 </div>
                 <div class="form-group form-group--flush">

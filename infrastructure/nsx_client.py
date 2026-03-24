@@ -124,9 +124,13 @@ class NSXClient:
     async def create_group(self, group_id: str, display_name: str, ip_addresses: list[str]) -> dict:
         """PATCH .../groups/{group_id} — upsert an IPAddressExpression group (creates if absent)."""
         url = f"{self._base()}/policy/api/v1/infra/domains/default/groups/{group_id}"
+        expression = (
+            [{"resource_type": "IPAddressExpression", "ip_addresses": ip_addresses}]
+            if ip_addresses else []
+        )
         payload = {
             "display_name": display_name,
-            "expression": [{"resource_type": "IPAddressExpression", "ip_addresses": ip_addresses}],
+            "expression": expression,
         }
         try:
             async with self._mk_client() as c:

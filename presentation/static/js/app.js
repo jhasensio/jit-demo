@@ -1370,6 +1370,7 @@ function switchSettingsTab(name) {
 
 async function loadSettings() {
   await refreshEnforceFooterStatus();
+  refreshTargetApps();
   try {
     const res = await fetch("/sessions/settings");
     if (!res.ok) return;
@@ -1599,6 +1600,7 @@ async function loadAviPolicyView() {
     refreshAviIpAddrGroups(),
     refreshAviPolicies(),
     refreshAviVirtualServices(),
+    refreshTargetApps(),
   ]);
   await refreshMappings();
 }
@@ -2435,8 +2437,18 @@ async function deleteMapping(id) {
 // ─── vDefend (NSX) Policy view ────────────────────────────────────────────────
 
 async function loadNsxPolicyView() {
-  await Promise.all([refreshNsxGroups(), refreshNsxGwPolicies(), refreshNsxTier0s()]);
+  await Promise.all([refreshNsxGroups(), refreshNsxGwPolicies(), refreshNsxTier0s(), refreshTargetApps()]);
   loadNsxOnboardedApps();
+  // Wire IP auto-fill for onboarding select
+  const sel = document.getElementById("nsx-onboard-target-app");
+  if (sel && !sel.dataset.ipAutofill) {
+    sel.dataset.ipAutofill = "1";
+    sel.addEventListener("change", () => {
+      const app = _targetApps.find(a => a.name === sel.value);
+      const ipInput = document.getElementById("nsx-onboard-ip");
+      if (ipInput && app) ipInput.value = app.ip_address;
+    });
+  }
 }
 
 // ── Deck 1: Security Groups ────────────────────────────────────────────────────
@@ -2940,7 +2952,156 @@ async function deleteGwPolicy(policyId) {
   }
 }
 
+// ─── Target Application Definitions (DB-backed) ───────────────────────────────
+
+let _targetApps = [];
+
+async function refreshTargetApps() {
+  try {
+    const r = await fetch("/target-apps");
+    _targetApps = r.ok ? await r.json() : [];
+  } catch (_) { _targetApps = []; }
+  renderTargetAppsTable();
+  populateTargetAppDropdowns();
+}
+
+function populateTargetAppDropdowns() {
+  const opts = '<option value="">— select target application —</option>' +
+    _targetApps.map(a => `<option value="${_esc(a.name)}">${_esc(a.name)}</option>`).join("");
+  ["jf-target-app", "attach-target-app", "nsx-onboard-target-app"].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = opts;
+    if (prev) sel.value = prev;  // restore selection if still valid
+  });
+}
+
+function renderTargetAppsTable() {
+  const wrap = document.getElementById("target-apps-table-wrap");
+  if (!wrap) return;
+  if (_targetApps.length === 0) {
+    wrap.innerHTML = '<span class="placeholder">No target applications defined.</span>';
+    return;
+  }
+  const rows = _targetApps.map(a => `<tr>
+    <td>${_esc(a.name)}</td>
+    <td><code class="nsx-ip-cell">${_esc(a.ip_address)}</code></td>
+    <td style="opacity:.75">${_esc(a.description || "—")}</td>
+    <td>
+      <button class="btn btn-small" onclick="openEditTargetAppModal(${a.id})">Edit</button>
+      <button class="btn btn-small btn-danger" onclick="deleteTargetApp(${a.id})">Delete</button>
+    </td>
+  </tr>`).join("");
+  wrap.innerHTML = `<table class="nsp-table">
+    <thead><tr><th>Name</th><th>IP Address</th><th>Description</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function openCreateTargetAppModal() {
+  openModal(`
+    <h3 class="modal-title">New Target Application</h3>
+    <div class="form-group">
+      <label>Application Name</label>
+      <input id="ta-new-name" type="text" placeholder="e.g. SEC_APP_01" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label>IP Address</label>
+      <input id="ta-new-ip" type="text" placeholder="e.g. 10.114.209.80" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label>Description <span style="opacity:.6;font-size:var(--text-xs)">(optional)</span></label>
+      <input id="ta-new-desc" type="text" placeholder="e.g. Security Application" autocomplete="off" />
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCreateTargetApp()">Create</button>
+    </div>`);
+}
+
+async function submitCreateTargetApp() {
+  const name = (document.getElementById("ta-new-name")?.value || "").trim();
+  const ip   = (document.getElementById("ta-new-ip")?.value || "").trim();
+  const desc = (document.getElementById("ta-new-desc")?.value || "").trim();
+  if (!name || !ip) { showToast("Name and IP Address are required.", "error"); return; }
+  try {
+    const r = await fetch("/target-apps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, ip_address: ip, description: desc || null }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      showToast(`Failed: ${err.detail || r.statusText}`, "error");
+      return;
+    }
+    closeModal();
+    showToast(`Application "${name}" created.`, "success");
+    await refreshTargetApps();
+  } catch (ex) { showToast(`Error: ${ex.message}`, "error"); }
+}
+
+function openEditTargetAppModal(appId) {
+  const app = _targetApps.find(a => a.id === appId);
+  if (!app) return;
+  openModal(`
+    <h3 class="modal-title">Edit: ${_esc(app.name)}</h3>
+    <div class="form-group">
+      <label>Application Name</label>
+      <input id="ta-edit-name" type="text" value="${_esc(app.name)}" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label>IP Address</label>
+      <input id="ta-edit-ip" type="text" value="${_esc(app.ip_address)}" autocomplete="off" />
+    </div>
+    <div class="form-group">
+      <label>Description <span style="opacity:.6;font-size:var(--text-xs)">(optional)</span></label>
+      <input id="ta-edit-desc" type="text" value="${_esc(app.description || "")}" autocomplete="off" />
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitUpdateTargetApp(${appId})">Save</button>
+    </div>`);
+}
+
+async function submitUpdateTargetApp(appId) {
+  const name = (document.getElementById("ta-edit-name")?.value || "").trim();
+  const ip   = (document.getElementById("ta-edit-ip")?.value || "").trim();
+  const desc = (document.getElementById("ta-edit-desc")?.value || "").trim();
+  if (!name || !ip) { showToast("Name and IP Address are required.", "error"); return; }
+  try {
+    const r = await fetch(`/target-apps/${appId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, ip_address: ip, description: desc || null }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      showToast(`Failed: ${err.detail || r.statusText}`, "error");
+      return;
+    }
+    closeModal();
+    showToast("Application updated.", "success");
+    await refreshTargetApps();
+  } catch (ex) { showToast(`Error: ${ex.message}`, "error"); }
+}
+
+async function deleteTargetApp(appId) {
+  const app = _targetApps.find(a => a.id === appId);
+  const label = app ? _esc(app.name) : String(appId);
+  const confirmed = await showConfirm(`Delete application <strong>${label}</strong>?`);
+  if (!confirmed) return;
+  try {
+    const r = await fetch(`/target-apps/${appId}`, { method: "DELETE" });
+    if (!r.ok) { showToast("Delete failed.", "error"); return; }
+    showToast("Application deleted.", "success");
+    await refreshTargetApps();
+  } catch (ex) { showToast(`Error: ${ex.message}`, "error"); }
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 connectSSE();
 updateJITPreview();
 refreshEnforceFooterStatus();
+refreshTargetApps();

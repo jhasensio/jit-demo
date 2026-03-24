@@ -13,10 +13,26 @@ class Base(DeclarativeBase):
 
 
 def init_db() -> None:
-    """Create all tables on startup."""
+    """Create all tables on startup and seed defaults."""
     # Import models so their metadata is registered before create_all
-    import domain.policy.models  # noqa: F401
+    import domain.policy.models      # noqa: F401
+    import domain.target_app.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+
+    # Seed default target applications if the table is empty
+    from domain.target_app.models import TargetApp
+    db = SessionLocal()
+    try:
+        if db.query(TargetApp).count() == 0:
+            defaults = [
+                TargetApp(name="HR_APP_01",  ip_address="10.114.209.72", description="Human Resources Application"),
+                TargetApp(name="FIN_APP_01", ip_address="10.114.209.73", description="Finance Application"),
+                TargetApp(name="ENG_APP_01", ip_address="10.114.209.74", description="Engineering Application"),
+            ]
+            db.add_all(defaults)
+            db.commit()
+    finally:
+        db.close()
 
 
 def get_db():
