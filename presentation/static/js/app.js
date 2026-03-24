@@ -31,7 +31,6 @@ const VALID_DOMAINS = new Set(["IDSP", "ARIA", "JIT", "SYSTEM", "CONNECTIONS", "
 // Enforcement card config (order matches JITService output)
 const ENFORCEMENT_CARDS = [
   { id: "card-gfw", urlId: "url-gfw", bodyId: "body-gfw" },
-  { id: "card-dfw", urlId: "url-dfw", bodyId: "body-dfw" },
   { id: "card-avi", urlId: "url-avi", bodyId: "body-avi" },
 ];
 
@@ -491,9 +490,8 @@ function handleJITCardUpdate(event) {
   // Map system name → card config
   const sys = ep.system;
   let cfg = null;
-  if      (sys.includes("Gateway"))                              cfg = ENFORCEMENT_CARDS[0];
-  else if (sys.includes("Distributed"))                          cfg = ENFORCEMENT_CARDS[1];
-  else if (sys.includes("AVI") || sys.includes("Load Balancer")) cfg = ENFORCEMENT_CARDS[2];
+  if      (sys.includes("vDefend") || sys.includes("Gateway") || sys.includes("Distributed")) cfg = ENFORCEMENT_CARDS[0];
+  else if (sys.includes("AVI") || sys.includes("Load Balancer"))                              cfg = ENFORCEMENT_CARDS[1];
   if (!cfg) return;
 
   const card   = document.getElementById(cfg.id);

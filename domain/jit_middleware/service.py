@@ -24,18 +24,8 @@ class JITService:
 
         nsx_base = (nsx_host or "https://nsx-manager.lab").rstrip("/")
 
-        nsx_gfw = EnforcementPayload(
-            system="vDefend Gateway Firewall",
-            method="PATCH",
-            url=f"{nsx_base}/policy/api/v1/infra/domains/default/groups/{jit_group}",
-            payload={
-                "display_name": jit_group,
-                "expression": ip_expression,
-            },
-        )
-
-        nsx_dfw = EnforcementPayload(
-            system="vDefend Distributed Firewall",
+        nsx = EnforcementPayload(
+            system="vDefend Security Group (GW / Distributed Firewall)",
             method="PATCH",
             url=f"{nsx_base}/policy/api/v1/infra/domains/default/groups/{jit_group}",
             payload={
@@ -71,4 +61,4 @@ class JITService:
             payload=avi_payload,
         )
 
-        return [nsx_gfw, nsx_dfw, avi_lb]
+        return [nsx, avi_lb]

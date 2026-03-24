@@ -77,7 +77,7 @@ async def jit_webhook(payload: WebhookPayload) -> dict:
     nsx_host, avi_host = _get_hosts()
     enforcements = JITService.generate_enforcements(req, ipaddrgroup_name=ipaddrgroup_name, nsx_host=nsx_host, avi_host=avi_host)
 
-    labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
+    labels = ["[1/2] vDefend Security Group", "[2/2] AVI LB"]
     for label, enforcement in zip(labels, enforcements):
         await event_bus.publish(
             {
@@ -142,7 +142,7 @@ async def jit_direct(req: DirectJITRequest, request: Request) -> dict:
     nsx_host, avi_host = _get_hosts()
     enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name, nsx_host=nsx_host, avi_host=avi_host)
 
-    labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
+    labels = ["[1/2] vDefend Security Group", "[2/2] AVI LB"]
     for label, enforcement in zip(labels, enforcements):
         await event_bus.publish(
             {

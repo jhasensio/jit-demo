@@ -76,15 +76,18 @@ class NSXClient:
 
         try:
             async with self._mk_client() as c:
-                # GET current group to read existing ip_addresses
+                # GET current group to read existing ip_addresses AND tags
                 existing_ips: list[str] = []
+                existing_tags: list[dict] = []
                 get_r = await c.get(url)
                 if get_r.status_code == 200:
                     try:
-                        for expr in get_r.json().get("expression", []):
+                        current = get_r.json()
+                        for expr in current.get("expression", []):
                             if isinstance(expr, dict) and expr.get("resource_type") == "IPAddressExpression":
                                 existing_ips = [ip for ip in expr.get("ip_addresses", []) if ip]
                                 break
+                        existing_tags = current.get("tags", [])
                     except Exception:
                         pass
 
@@ -103,6 +106,9 @@ class NSXClient:
                         break
 
                 merged_payload["expression"] = clean_expressions
+                # Preserve existing tags so a PATCH never strips them
+                if existing_tags:
+                    merged_payload.setdefault("tags", existing_tags)
 
                 r = await c.patch(url, json=merged_payload)
 

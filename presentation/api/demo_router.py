@@ -136,7 +136,7 @@ async def demo_enforce(webhook: WebhookPayload) -> dict:
 
     enforcements = JITService.generate_enforcements(req)
 
-    labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
+    labels = ["[1/2] vDefend Security Group", "[2/2] AVI LB"]
     for label, enforcement in zip(labels, enforcements):
         await event_bus.publish(
             {
