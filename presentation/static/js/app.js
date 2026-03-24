@@ -2597,8 +2597,8 @@ function renderNsxGwpTable() {
       <td>${ruleCount}</td>
       <td>${stateful}</td>
       <td>
-        <button class="btn btn-small" onclick="openEditGwPolicyModal(${JSON.stringify(_esc(p.id))})">Edit</button>
-        <button class="btn btn-small btn-danger" onclick="deleteGwPolicy(${JSON.stringify(_esc(p.id))})">Delete</button>
+        <button class="btn btn-small" onclick='openEditGwPolicyModal(${JSON.stringify(_esc(p.id))})'>Edit</button>
+        <button class="btn btn-small btn-danger" onclick='deleteGwPolicy(${JSON.stringify(_esc(p.id))})'>Delete</button>
       </td>
     </tr>`;
   }).join("");
@@ -2849,9 +2849,9 @@ async function openEditGwPolicyModal(policyId) {
         ${rules.map(_gwpRuleCard).join("")}
       </div>
       <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-danger" onclick="deleteGwPolicy(${JSON.stringify(_esc(policyId))})">Delete Policy</button>
+        <button class="btn btn-danger" onclick='deleteGwPolicy(${JSON.stringify(_esc(policyId))})'>Delete Policy</button>
         <button class="btn" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitUpdateGwPolicy(${JSON.stringify(_esc(policyId))})">Save Changes</button>
+        <button class="btn btn-primary" onclick='submitUpdateGwPolicy(${JSON.stringify(_esc(policyId))})'>Save Changes</button>
       </div>`);
 
     // Store original policy on container for _revision preservation

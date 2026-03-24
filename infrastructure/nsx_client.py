@@ -165,15 +165,11 @@ class NSXClient:
             return {"success": False, "result": None, "error": str(exc)}
 
     async def create_or_update_gateway_policy(self, policy_id: str, payload: dict) -> dict:
-        """POST collection (create) or PUT /{id} (update existing, _revision required)."""
-        base_url = f"{self._base()}/policy/api/v1/infra/domains/default/gateway-policies"
-        is_update = "_revision" in payload
+        """PATCH /{id} — NSX intent-based upsert (creates or updates, no prior object needed)."""
+        url = f"{self._base()}/policy/api/v1/infra/domains/default/gateway-policies/{policy_id}"
         try:
             async with self._mk_client() as c:
-                if is_update:
-                    r = await c.put(f"{base_url}/{policy_id}", json=payload)
-                else:
-                    r = await c.post(base_url, json=payload)
+                r = await c.patch(url, json=payload)
             success = r.status_code in (200, 201)
             body = {}
             try:
