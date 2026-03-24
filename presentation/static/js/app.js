@@ -2896,15 +2896,15 @@ function _gwpPhase2() {
   if (!app) { showToast("Application not found in onboarded list.", "error"); return; }
 
   const { prefix, dest_group_path: dest, bypass_group_path: bypass, jit_group_path: jit } = app;
-  const policyName = `${prefix}-GW-netpolicy`;
+  const policyName       = `${prefix}-GW-netpolicy`;
+  const enforcementPoint = document.getElementById("gwp-enforcement-point")?.value || "ANY";
+  const scopeArray       = enforcementPoint === "ANY" ? ["ANY"] : [enforcementPoint];
 
   const rules = [
-    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], services: ["ANY"], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: ["ANY"] },
-    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], services: ["ANY"], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: ["ANY"] },
-    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], services: ["ANY"], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: ["ANY"] },
+    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], services: ["ANY"], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: scopeArray },
+    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], services: ["ANY"], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: scopeArray },
+    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], services: ["ANY"], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: scopeArray },
   ];
-
-  const enforcementPoint = document.getElementById("gwp-enforcement-point")?.value || "ANY";
   const container = document.getElementById("gwp-create-rules-container");
   if (container) {
     container.innerHTML = rules.map(_gwpRuleCard).join("");
@@ -2944,9 +2944,9 @@ async function submitCreateGwPolicy() {
   const cards = container.querySelectorAll(".modal-nsp-rule-card");
 
   const baseRules = [
-    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], services: ["ANY"], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
-    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], services: ["ANY"], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
-    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], services: ["ANY"], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], services: ["ANY"], scope: scopeArray, sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], services: ["ANY"], scope: scopeArray, sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], services: ["ANY"], scope: scopeArray, sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
   ];
 
   const rules = baseRules.map((base, i) => cards[i] ? _collectRuleEdits(cards[i], base) : base);
@@ -2955,7 +2955,6 @@ async function submitCreateGwPolicy() {
     id:           policyName,
     display_name: policyName,
     category:     "LocalGatewayRules",
-    scope:        scopeArray,
     stateful:     true,
     tcp_strict:   true,
     rules,
