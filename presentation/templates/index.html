@@ -507,7 +507,8 @@
           <div class="panel panel-network-map">
             <div class="panel-hd">Network Topology Map</div>
             <div class="panel-bd panel-bd--map">
-              <img src="/static/network-topology.svg" alt="Network Topology" class="network-map-img" />
+              <img src="/static/network-topology.svg" alt="Network Topology" class="network-map-img"
+                   onclick="openMapLightbox()" title="Click to zoom" style="cursor:zoom-in" />
             </div>
           </div>
 
@@ -592,6 +593,7 @@
               <span class="ett-icon">&#9670;</span> AVI Load Balancer
             </label>
           </div>
+          <div class="enforce-onboard-note" id="enforce-onboard-note" style="display:none"></div>
           <div class="enforce-results" id="enforce-results"></div>
         </div>
 
@@ -867,7 +869,7 @@
               </div>
               <div class="form-group">
                 <label for="avi-onboard-bypass-ips">Bypass IPs <span style="opacity:.6;font-weight:400">(optional — comma-separated admin/ops hosts)</span></label>
-                <input id="avi-onboard-bypass-ips" type="text" placeholder="e.g. 10.0.0.5, 192.168.1.10" autocomplete="off" />
+                <input id="avi-onboard-bypass-ips" type="text" placeholder="e.g. 1.1.1.1, 1.1.1.1-1.1.1.100" autocomplete="off" />
               </div>
               <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
                 <button type="submit" class="btn btn-primary">Preview Rules</button>
@@ -906,11 +908,11 @@
               <thead>
                 <tr>
                   <th>Target App</th><th>Virtual Service</th><th>VIP</th>
-                  <th>Policy</th><th>Config Status</th><th>Created</th><th></th>
+                  <th>Policy</th><th>Config Status</th><th>JIT IPs</th><th>Created</th><th></th>
                 </tr>
               </thead>
               <tbody id="mappings-tbody">
-                <tr class="mappings-empty"><td colspan="7">No mappings saved yet.</td></tr>
+                <tr class="mappings-empty"><td colspan="8">No mappings saved yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -1005,6 +1007,23 @@
 <div id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-content" onclick="if(event.target===this)closeModal()">
   <div id="modal">
     <div id="modal-content"></div>
+  </div>
+</div>
+
+<!-- ── Map lightbox ──────────────────────────────────────────────────────── -->
+<div id="map-lightbox" aria-hidden="true">
+  <div class="mlb-toolbar">
+    <span class="mlb-title">Network Topology Map</span>
+    <div class="mlb-zoom-controls">
+      <button class="mlb-btn" onclick="zoomMap(-1)" title="Zoom out">&#8722;</button>
+      <span id="mlb-zoom-label">100%</span>
+      <button class="mlb-btn" onclick="zoomMap(+1)" title="Zoom in">&#43;</button>
+      <button class="mlb-btn" onclick="resetMapZoom()" title="Fit to screen">&#8634;</button>
+    </div>
+    <button class="mlb-btn mlb-close" onclick="closeMapLightbox()" title="Close">&#10005;</button>
+  </div>
+  <div class="mlb-viewport" id="mlb-viewport" onclick="if(event.target===this)closeMapLightbox()">
+    <img id="mlb-img" src="/static/network-topology.svg" alt="Network Topology Map" />
   </div>
 </div>
 

@@ -91,7 +91,7 @@ async def execute_live_enforcement(
             }
         )
 
-        if enforcement.system in ("vDefend Gateway Firewall", "vDefend Distributed Firewall"):
+        if "vDefend" in enforcement.system:
             if not nsx_creds or credential_store.get_nsx_status() != "ok":
                 result: dict = {
                     "success": False,

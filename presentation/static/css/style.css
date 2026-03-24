@@ -3276,3 +3276,184 @@ header h1 {
   background: var(--input-bg);
   color: var(--text-primary);
 }
+
+/* ─── Map Lightbox ────────────────────────────────────────────────────────── */
+#map-lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.92);
+}
+
+#map-lightbox.open {
+  display: flex;
+}
+
+.mlb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: #111111;
+  border-bottom: 1px solid #333333;
+  flex-shrink: 0;
+}
+
+.mlb-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #a0a0a0;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  flex: 1;
+}
+
+.mlb-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#mlb-zoom-label {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: #aaaaaa;
+  min-width: 38px;
+  text-align: center;
+}
+
+.mlb-btn {
+  background: #222222;
+  border: 1px solid #444444;
+  color: #cccccc;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.mlb-btn:hover {
+  background: #333333;
+  border-color: #666666;
+  color: #ffffff;
+}
+
+.mlb-close {
+  font-size: 0.75rem;
+  padding: 3px 10px;
+}
+
+.mlb-viewport {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+  cursor: default;
+}
+
+#mlb-img {
+  display: block;
+  /* width controlled by JS; start at natural fit */
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 4px 40px rgba(0, 0, 0, 0.6);
+  transition: width 0.15s ease;
+  user-select: none;
+}
+
+/* ─── Modal aesthetic improvements ──────────────────────────────────────────── */
+#modal {
+  border-radius: 12px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--box-border);
+}
+
+.modal-title {
+  padding-left: 10px;
+  border-left: 3px solid var(--text-success);
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+}
+
+.modal-subtitle {
+  padding-left: 10px;
+  border-left: 3px solid transparent;
+  margin-top: -10px;
+}
+
+.confirm-actions {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--box-border);
+  gap: 10px;
+}
+
+/* ─── Rule preview card improvements ────────────────────────────────────────── */
+.rule-preview-card {
+  transition: border-color 0.15s;
+}
+.rule-preview-card:hover {
+  border-color: var(--text-muted);
+}
+.rule-preview-card[data-default="ALLOW"] { border-left: 3px solid var(--text-success); }
+.rule-preview-card[data-default="DENY"]  { border-left: 3px solid var(--text-error); }
+
+.rpc-controls {
+  background: var(--bg-alt);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin-top: 6px;
+}
+
+.rpc-action-select {
+  min-width: 90px;
+}
+
+/* ─── NSP table: Attach/Detach + disabled Delete ─────────────────────────────── */
+.btn-small.btn-warning {
+  color: var(--text-warning, #e6a817);
+  border-color: rgba(230, 168, 23, 0.45);
+}
+.btn-small.btn-warning:hover {
+  background: rgba(230, 168, 23, 0.1);
+}
+.btn-small[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ─── Enforce target toggle — disabled state ─────────────────────────────────── */
+.enforce-target-toggle.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.enforce-onboard-note {
+  font-size: 0.68rem;
+  color: var(--text-warning, #e6a817);
+  margin-top: 4px;
+  padding: 2px 6px;
+  background: rgba(230, 168, 23, 0.08);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(230, 168, 23, 0.3);
+}
+
+/* ─── Policy mappings JIT IPs column ────────────────────────────────────────── */
+.jit-ip-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.jit-ip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  background: rgba(13, 122, 63, 0.1);
+  border: 1px solid rgba(13, 122, 63, 0.25);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--text-success);
+}

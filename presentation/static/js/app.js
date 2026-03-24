@@ -547,6 +547,7 @@ async function submitJITDirect(e) {
       _renderEnforcements(data.enforcements);
       statusEl.style.color = "var(--text-success)";
       statusEl.textContent = `✓ ${data.enforcements.length} enforcement payloads generated`;
+      updateEnforceTargetAvailability(body.target_app);
     } else {
       const err = await resp.json().catch(() => ({}));
       statusEl.style.color = "var(--text-error)";
@@ -1323,6 +1324,48 @@ document.addEventListener("DOMContentLoaded", () => {
   onEnforceTargetChange();
 });
 
+async function updateEnforceTargetAvailability(targetApp) {
+  if (!targetApp) return;
+
+  // NSX: check localStorage-backed onboarded apps list
+  const nsxOk = !!_nsxOnboardedApps.find(a => a.target_app === targetApp);
+
+  // AVI: check if there is a policy mapping for this target app
+  let aviOk = false;
+  try {
+    const res = await fetch("/avi-policy/mappings");
+    if (res.ok) {
+      const mappings = await res.json();
+      aviOk = mappings.some(m => m.target_app === targetApp);
+    }
+  } catch (_) {}
+
+  const nsxCb    = document.getElementById("target-nsx");
+  const aviCb    = document.getElementById("target-avi");
+  const nsxLbl   = document.getElementById("lbl-target-nsx");
+  const aviLbl   = document.getElementById("lbl-target-avi");
+  const noteEl   = document.getElementById("enforce-onboard-note");
+
+  const msgs = [];
+  if (nsxCb) {
+    nsxCb.disabled = !nsxOk;
+    if (!nsxOk) { nsxCb.checked = false; msgs.push("NSX not onboarded"); }
+    nsxLbl?.classList.toggle("active", !!nsxCb.checked);
+    nsxLbl?.classList.toggle("disabled", !nsxOk);
+  }
+  if (aviCb) {
+    aviCb.disabled = !aviOk;
+    if (!aviOk) { aviCb.checked = false; msgs.push("AVI not onboarded"); }
+    aviLbl?.classList.toggle("active", !!aviCb.checked);
+    aviLbl?.classList.toggle("disabled", !aviOk);
+  }
+  if (noteEl) {
+    noteEl.textContent = msgs.length ? msgs.join(" · ") : "";
+    noteEl.style.display = msgs.length ? "" : "none";
+  }
+  onEnforceTargetChange();
+}
+
 async function runLiveEnforce() {
   const nsxChecked = document.getElementById("target-nsx")?.checked ?? true;
   const aviChecked = document.getElementById("target-avi")?.checked ?? true;
@@ -1697,12 +1740,24 @@ function renderNspTable() {
   const rows = slice.map(p => {
     const uuid = p.uuid || (p.url || "").split("/").filter(Boolean).pop() || "";
     const ruleCount = (p.rules || []).length;
+    const attachedVs = _cachedVsList.find(v => {
+      const ref = v.network_security_policy_ref || "";
+      return ref.split("/").filter(Boolean).pop() === uuid || ref.includes(uuid);
+    });
+    const isAttached = !!attachedVs;
+    const attachBtn = isAttached
+      ? `<button class="btn-small btn-warning" onclick="event.stopPropagation();detachNspFromTable('${_esc(uuid)}','${_esc(attachedVs.uuid || "")}')">Detach</button>`
+      : `<button class="btn-small btn-secondary" onclick="event.stopPropagation();attachNspPrompt('${_esc(uuid)}','${_esc(p.name)}')">Attach</button>`;
+    const deleteBtn = isAttached
+      ? `<button class="btn-small btn-danger" disabled title="Detach from VS first">Delete</button>`
+      : `<button class="btn-small btn-danger" onclick="event.stopPropagation();deleteNsp('${_esc(uuid)}')">Delete</button>`;
     return `<tr class="clickable-row" onclick="openEditNspModal('${_esc(uuid)}')">
       <td>${_esc(p.name)}</td>
       <td>${ruleCount} rule${ruleCount !== 1 ? "s" : ""}</td>
-      <td>
+      <td class="btn-nowrap">
         <button class="btn-small" onclick="event.stopPropagation();openEditNspModal('${_esc(uuid)}')">Edit</button>
-        <button class="btn-small btn-danger" onclick="event.stopPropagation();deleteNsp('${_esc(uuid)}')">Delete</button>
+        ${attachBtn}
+        ${deleteBtn}
       </td>
     </tr>`;
   }).join("");
@@ -2186,9 +2241,99 @@ async function deleteNsp(uuid) {
       }));
     }
 
+    // Cascade-delete corresponding policy mapping(s)
+    try {
+      const mappingsRes = await fetch("/avi-policy/mappings");
+      if (mappingsRes.ok) {
+        const mappings = await mappingsRes.json();
+        const orphaned = mappings.filter(m => m.policy_uuid === uuid);
+        await Promise.allSettled(orphaned.map(m =>
+          fetch(`/avi-policy/mappings/${m.id}`, { method: "DELETE" })
+        ));
+      }
+    } catch (_) {}
+
     closeModal();
     showToast(`Policy deleted${groupRefs.length ? ` along with ${groupRefs.length} IP group${groupRefs.length > 1 ? "s" : ""}` : ""}.`, "success");
     await Promise.all([refreshAviPolicies(), refreshAviIpAddrGroups(), refreshAviVirtualServices()]);
+    await refreshMappings();
+  } catch (ex) {
+    showToast("Request failed: " + ex.message, "error");
+  }
+}
+
+function attachNspPrompt(nspUuid, nspName) {
+  const vsList = _cachedVsList.filter(v => !v.network_security_policy_ref);
+  if (!vsList.length) {
+    showToast("No available Virtual Services (all already have a policy attached).", "error");
+    return;
+  }
+  openModal(`
+    <div class="modal-title">Attach Policy to Virtual Service</div>
+    <p class="modal-subtitle">Select a Virtual Service to attach <strong>${_esc(nspName)}</strong> to.</p>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Virtual Service</label>
+      <select id="attach-vs-select" style="width:100%">
+        <option value="">— select —</option>
+        ${vsList.map(v => `<option value="${_esc(v.uuid)}" data-ref="${_esc(v.url || "")}">${_esc(v.name)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn btn-primary" onclick="confirmAttachNsp('${_esc(nspUuid)}','${_esc(nspName)}')">Attach</button>
+      <button class="btn" onclick="closeModal()">Cancel</button>
+    </div>
+  `);
+}
+
+async function confirmAttachNsp(nspUuid, nspName) {
+  const sel = document.getElementById("attach-vs-select");
+  const vsUuid = sel?.value;
+  if (!vsUuid) { showToast("Select a Virtual Service.", "error"); return; }
+
+  // Find policy ref from NSP list
+  const nsp = _nspAllResults.find(p => {
+    const u = p.uuid || (p.url || "").split("/").filter(Boolean).pop() || "";
+    return u === nspUuid;
+  });
+  const policyRef = nsp?.url || `/api/networksecuritypolicy/${nspUuid}`;
+
+  try {
+    const res = await fetch("/avi-policy/attach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vs_uuid: vsUuid, policy_ref: policyRef }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast("Attach failed: " + (err.detail || res.status), "error");
+      return;
+    }
+    closeModal();
+    showToast(`Policy attached to Virtual Service.`, "success");
+    await Promise.all([refreshAviPolicies(), refreshAviVirtualServices()]);
+    await refreshMappings();
+  } catch (ex) {
+    showToast("Request failed: " + ex.message, "error");
+  }
+}
+
+async function detachNspFromTable(nspUuid, vsUuid) {
+  const ok = await showConfirm("Detach this policy from its Virtual Service?");
+  if (!ok) return;
+  try {
+    const res = await fetch("/avi-policy/detach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vs_uuid: vsUuid }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast("Detach failed: " + (err.detail || res.status), "error");
+      return;
+    }
+    showToast("Policy detached.", "success");
+    await Promise.all([refreshAviPolicies(), refreshAviVirtualServices()]);
+    await refreshMappings();
   } catch (ex) {
     showToast("Request failed: " + ex.message, "error");
   }
@@ -2284,7 +2429,7 @@ function previewAviOnboardRules(e) {
     </p>
     <div class="rule-preview-cards">
       ${ruleDefs.map(r => `
-        <div class="rule-preview-card">
+        <div class="rule-preview-card" data-default="${r.defaultAction}">
           <div class="rpc-header">
             <span class="rpc-index">Rule ${r.index + 1}</span>
             <span class="rpc-name">${_esc(r.name)}</span>
@@ -2304,7 +2449,6 @@ function previewAviOnboardRules(e) {
                   ${r.defaultAction === "ALLOW" ? "selected" : ""}>ALLOW</option>
                 <option value="NETWORK_SECURITY_POLICY_ACTION_TYPE_DENY"
                   ${r.defaultAction === "DENY" ? "selected" : ""}>DENY</option>
-                <option value="NETWORK_SECURITY_POLICY_ACTION_TYPE_RESET_CONN">RESET_CONN</option>
               </select>
             </div>
           </div>
@@ -2453,7 +2597,8 @@ async function _doAviOnboarding(pending, ruleEdits) {
     showToast(`${appName} onboarded — policy '${policyName}' created and attached to ${vsName}.`, "success");
     document.getElementById("avi-onboard-form")?.reset();
     document.getElementById("avi-onboard-derived-wrap").style.display = "none";
-    await Promise.all([refreshAviPolicies(), refreshAviIpAddrGroups(), refreshAviVirtualServices(), refreshMappings()]);
+    await Promise.all([refreshAviPolicies(), refreshAviIpAddrGroups(), refreshAviVirtualServices()]);
+    await refreshMappings();
   } catch (ex) {
     showToast("Request failed: " + ex.message, "error");
     setStatus("");
@@ -2494,25 +2639,35 @@ async function refreshMappings() {
   if (!tbody) return;
   try {
     const res = await fetch("/avi-policy/mappings");
-    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="7">Error loading.</td></tr>'; return; }
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="8">Error loading.</td></tr>'; return; }
     const rows = await res.json();
-    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="muted-hint">No mappings saved.</td></tr>'; return; }
-    tbody.innerHTML = rows.map(r => `
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted-hint">No mappings saved.</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => {
+      const ipg = r.ipaddrgroup_ref
+        ? _cachedIpGroups.find(g => g.url === r.ipaddrgroup_ref || (g.url || "").split("#").pop() === r.ipaddrgroup_ref.split("#").pop())
+        : _cachedIpGroups.find(g => g.name === r.ipaddrgroup_name);
+      const jitAddrs = ipg?.addrs || [];
+      const jitIpsHtml = jitAddrs.length
+        ? `<span class="jit-ip-list">${jitAddrs.map(a => `<code class="jit-ip">${_esc(a.addr)}</code>`).join(" ")}</span>`
+        : `<span class="muted-sm">—</span>`;
+      return `
       <tr>
         <td>${_esc(r.target_app)}</td>
         <td>${_esc(r.vs_name)}</td>
         <td class="mono">${r.vip_address ? _esc(r.vip_address) : '<span class="muted-sm">—</span>'}</td>
         <td>${_esc(r.policy_name)}</td>
         <td>${_buildConfigStatus(r)}</td>
+        <td>${jitIpsHtml}</td>
         <td>${new Date(r.created_at).toLocaleString()}</td>
         <td class="btn-nowrap">
           <button class="btn-small btn-secondary" onclick="viewActiveIPs('${_esc(r.ipaddrgroup_ref || "")}','${_esc(r.ipaddrgroup_name || "")}')">View IPs</button>
           <button class="btn-small btn-secondary" onclick="syncMapping(${r.id},'${_esc(r.vs_uuid)}','${_esc(r.policy_uuid)}','${_esc(r.ipaddrgroup_ref || "")}')">Sync</button>
           <button class="btn-small btn-danger" onclick="deleteMapping(${r.id})">Delete</button>
         </td>
-      </tr>`).join("");
+      </tr>`;
+    }).join("");
   } catch (_) {
-    tbody.innerHTML = '<tr><td colspan="7">Error loading.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8">Error loading.</td></tr>';
   }
 }
 
@@ -2592,9 +2747,17 @@ async function viewActiveIPs(ipgroupRef, ipgroupName) {
     const data = res.ok ? await res.json() : null;
     const groups = data?.results || [];
 
-    const group = ipgroupRef
-      ? groups.find(g => g.url === ipgroupRef || g.name === ipgroupRef.split("/").pop())
-      : groups.find(g => g.name === ipgroupName);
+    const group = groups.find(g => {
+      if (ipgroupRef && g.url === ipgroupRef) return true;
+      if (ipgroupRef) {
+        // AVI URLs have a #name fragment; match by fragment
+        const storedFrag = ipgroupRef.split("#").pop();
+        const groupFrag  = (g.url || "").split("#").pop();
+        if (storedFrag && groupFrag && storedFrag === groupFrag) return true;
+      }
+      // Fall back to matching by name
+      return g.name === (ipgroupName || ipgroupRef?.split("#").pop());
+    });
 
     const addrs = group?.addrs || [];
 
@@ -3391,6 +3554,58 @@ async function deleteTargetApp(appId) {
     await refreshTargetApps();
   } catch (ex) { showToast(`Error: ${ex.message}`, "error"); }
 }
+
+// ─── Map Lightbox ─────────────────────────────────────────────────────────────
+let _mapZoom = 1.0;
+const _MAP_ZOOM_STEP = 0.25;
+const _MAP_ZOOM_MIN  = 0.25;
+const _MAP_ZOOM_MAX  = 4.0;
+
+function openMapLightbox() {
+  const lb = document.getElementById("map-lightbox");
+  if (!lb) return;
+  _mapZoom = 1.0;
+  _applyMapZoom();
+  lb.classList.add("open");
+  lb.setAttribute("aria-hidden", "false");
+  const vp = document.getElementById("mlb-viewport");
+  if (vp) {
+    vp._wheelHandler = (e) => { e.preventDefault(); zoomMap(e.deltaY < 0 ? 1 : -1); };
+    vp.addEventListener("wheel", vp._wheelHandler, { passive: false });
+  }
+}
+
+function closeMapLightbox() {
+  const lb = document.getElementById("map-lightbox");
+  if (!lb) return;
+  lb.classList.remove("open");
+  lb.setAttribute("aria-hidden", "true");
+  const vp = document.getElementById("mlb-viewport");
+  if (vp && vp._wheelHandler) {
+    vp.removeEventListener("wheel", vp._wheelHandler);
+    vp._wheelHandler = null;
+  }
+}
+
+function zoomMap(dir) {
+  _mapZoom = Math.max(_MAP_ZOOM_MIN, Math.min(_MAP_ZOOM_MAX, _mapZoom + dir * _MAP_ZOOM_STEP));
+  _applyMapZoom();
+}
+
+function resetMapZoom() { _mapZoom = 1.0; _applyMapZoom(); }
+
+function _applyMapZoom() {
+  const img = document.getElementById("mlb-img");
+  const label = document.getElementById("mlb-zoom-label");
+  if (img) img.style.width = `${Math.round(_mapZoom * 100)}%`;
+  if (label) label.textContent = `${Math.round(_mapZoom * 100)}%`;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("map-lightbox")?.classList.contains("open")) {
+    closeMapLightbox();
+  }
+});
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 connectSSE();
