@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INAIL Innovation Day — Authentication Portal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #0a1628 0%, #0d2137 40%, #0a2b1e 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #e2e8f0;
+    }
+
+    .portal-wrap {
+      width: 100%;
+      max-width: 420px;
+      padding: 16px;
+    }
+
+    .portal-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 40px 36px 32px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    }
+
+    .portal-logo-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 28px;
+      gap: 12px;
+    }
+
+    .portal-logo-img {
+      height: 48px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .portal-logo-fallback {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #00c896, #0097d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -1px;
+    }
+
+    .portal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f1f5f9;
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .portal-subtitle {
+      font-size: 12px;
+      color: #64748b;
+      text-align: center;
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .ip-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0,200,150,0.08);
+      border: 1px solid rgba(0,200,150,0.2);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 22px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .ip-badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #00c896;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px #00c896;
+    }
+
+    .ip-badge-label {
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    .ip-badge-value {
+      color: #00c896;
+      font-weight: 600;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    select {
+      width: 100%;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s, background 0.2s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    select:focus {
+      border-color: #00c896;
+      background: rgba(0,200,150,0.06);
+    }
+
+    input::placeholder { color: #475569; }
+
+    select option {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+
+    .action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .action-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 14px;
+      background: rgba(0,151,212,0.12);
+      border: 1px solid rgba(0,151,212,0.3);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #38bdf8;
+      letter-spacing: 0.5px;
+    }
+
+    .signin-btn {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      background: linear-gradient(135deg, #00c896, #0097d4);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .signin-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .signin-btn:active:not(:disabled) { transform: translateY(0); }
+    .signin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .result-area {
+      margin-top: 20px;
+    }
+
+    .result-banner {
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.5;
+      display: none;
+    }
+
+    .result-banner.success {
+      background: rgba(0,200,150,0.1);
+      border: 1px solid rgba(0,200,150,0.25);
+      color: #6ee7b7;
+      display: block;
+    }
+
+    .result-banner.error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #fca5a5;
+      display: block;
+    }
+
+    .result-title {
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .result-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 3px 0;
+    }
+
+    .result-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .result-dot.ok { background: #00c896; }
+    .result-dot.fail { background: #ef4444; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .portal-footer {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 11px;
+      color: #334155;
+    }
+
+    .no-apps-msg {
+      text-align: center;
+      color: #ef4444;
+      font-size: 13px;
+      padding: 8px 0;
+    }
+  </style>
+</head>
+<body>
+<div class="portal-wrap">
+  <div class="portal-card">
+    <div class="portal-logo-row">
+      <img src="/static/img/inail-logo.svg" alt="INAIL" class="portal-logo-img"
+           onerror="this.style.display='none';document.getElementById('logo-fallback').style.display='flex';" />
+      <div class="portal-logo-fallback" id="logo-fallback" style="display:none;">ZT</div>
+      <div>
+        <div class="portal-title">INAIL Innovation Day</div>
+        <div class="portal-subtitle">Secure Access Portal</div>
+      </div>
+    </div>
+
+    <div class="ip-badge">
+      <div class="ip-badge-dot"></div>
+      <span class="ip-badge-label">Your IP:</span>
+      <span class="ip-badge-value" id="client-ip-display">detecting…</span>
+    </div>
+
+    <form id="login-form" autocomplete="off" onsubmit="handleSignIn(event)">
+      <div class="form-group">
+        <label for="field-username">Username</label>
+        <input type="text" id="field-username" placeholder="user@example.com" required />
+      </div>
+
+      <div class="form-group">
+        <label for="field-password">Password</label>
+        <input type="password" id="field-password" placeholder="••••••••" required />
+      </div>
+
+      <div class="form-group">
+        <label for="field-app">Target Application</label>
+        <select id="field-app" required>
+          <option value="">— loading applications… —</option>
+        </select>
+      </div>
+
+      <div class="action-row">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Action</label>
+          <div class="action-badge">LOGIN</div>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Enforcement</label>
+          <div class="action-badge" id="enforce-badge" style="color:#94a3b8;border-color:rgba(148,163,184,0.2);">—</div>
+        </div>
+      </div>
+
+      <button type="submit" class="signin-btn" id="signin-btn" disabled>Sign In</button>
+    </form>
+
+    <div class="result-area" id="result-area"></div>
+  </div>
+
+  <div class="portal-footer">Zero Trust Network Access Demo · INAIL Innovation Day</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var _clientIp = '';
+  var _onboardingStatus = [];
+
+  // ── Fetch client IP ──────────────────────────────────────────────
+  fetch('/client-ip')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      _clientIp = d.ip || '';
+      var el = document.getElementById('client-ip-display');
+      el.textContent = _clientIp || 'unknown';
+    })
+    .catch(function () {
+      document.getElementById('client-ip-display').textContent = 'unknown';
+    });
+
+  // ── Fetch onboarding status & populate dropdown ───────────────────
+  fetch('/target-apps/onboarding-status')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      _onboardingStatus = data;
+      var onboarded = data.filter(function (a) { return a.avi_onboarded || a.nsx_onboarded; });
+      var sel = document.getElementById('field-app');
+
+      // Clear existing options
+      while (sel.firstChild) { sel.removeChild(sel.firstChild); }
+
+      if (onboarded.length === 0) {
+        var opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '— no onboarded applications —';
+        sel.appendChild(opt);
+
+        var msg = document.createElement('div');
+        msg.className = 'no-apps-msg';
+        msg.textContent = 'No applications are currently onboarded.';
+        sel.parentNode.appendChild(msg);
+      } else {
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '— select application —';
+        sel.appendChild(placeholder);
+
+        onboarded.forEach(function (app) {
+          var o = document.createElement('option');
+          o.value = app.name;
+          o.dataset.avi = app.avi_onboarded ? '1' : '0';
+          o.dataset.nsx = app.nsx_onboarded ? '1' : '0';
+          o.textContent = app.name;
+          sel.appendChild(o);
+        });
+
+        document.getElementById('signin-btn').disabled = false;
+      }
+    })
+    .catch(function () {
+      var sel = document.getElementById('field-app');
+      while (sel.firstChild) { sel.removeChild(sel.firstChild); }
+      var opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— failed to load —';
+      sel.appendChild(opt);
+    });
+
+  // ── Update enforce badge on app selection ─────────────────────────
+  document.getElementById('field-app').addEventListener('change', function () {
+    var sel = this;
+    var opt = sel.options[sel.selectedIndex];
+    var badge = document.getElementById('enforce-badge');
+
+    if (!opt || !opt.value) {
+      badge.textContent = '—';
+      badge.style.color = '#94a3b8';
+      badge.style.borderColor = 'rgba(148,163,184,0.2)';
+      return;
+    }
+
+    var avi = opt.dataset.avi === '1';
+    var nsx = opt.dataset.nsx === '1';
+    var parts = [];
+    if (avi) { parts.push('AVI'); }
+    if (nsx) { parts.push('vDefend'); }
+    badge.textContent = parts.join(' + ') || '—';
+    badge.style.color = '#38bdf8';
+    badge.style.borderColor = 'rgba(0,151,212,0.3)';
+  });
+
+  // ── Sign in handler ───────────────────────────────────────────────
+  window.handleSignIn = function (evt) {
+    evt.preventDefault();
+
+    var username = document.getElementById('field-username').value.trim();
+    var appSel   = document.getElementById('field-app');
+    var appOpt   = appSel.options[appSel.selectedIndex];
+    var appName  = appOpt ? appOpt.value : '';
+
+    if (!appName) { return; }
+
+    var avi = appOpt.dataset.avi === '1';
+    var nsx = appOpt.dataset.nsx === '1';
+    var targets = [];
+    if (avi) { targets.push('avi'); }
+    if (nsx) { targets.push('nsx'); }
+
+    var btn = document.getElementById('signin-btn');
+    btn.disabled = true;
+    btn.textContent = '';
+    var sp = document.createElement('span');
+    sp.className = 'spinner';
+    btn.appendChild(sp);
+    btn.appendChild(document.createTextNode('Enforcing…'));
+
+    clearResult();
+
+    var payload = {
+      username:   username,
+      source_ip:  _clientIp || '127.0.0.1',
+      target_app: appName,
+      action:     'LOGIN',
+      targets:    targets
+    };
+
+    fetch('/jit/enforce', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) { showResult(res.ok, res.data, username, appName); })
+      .catch(function (err) { showResult(false, { detail: err.message }, username, appName); })
+      .finally(function () {
+        btn.disabled = false;
+        while (btn.firstChild) { btn.removeChild(btn.firstChild); }
+        btn.textContent = 'Sign In';
+      });
+  };
+
+  // ── Render result banner ──────────────────────────────────────────
+  function clearResult() {
+    var area = document.getElementById('result-area');
+    while (area.firstChild) { area.removeChild(area.firstChild); }
+  }
+
+  function showResult(ok, data, username, appName) {
+    var area = document.getElementById('result-area');
+    while (area.firstChild) { area.removeChild(area.firstChild); }
+
+    var banner = document.createElement('div');
+    banner.className = 'result-banner ' + (ok ? 'success' : 'error');
+
+    var title = document.createElement('div');
+    title.className = 'result-title';
+    title.textContent = ok ? 'Access Granted' : 'Enforcement Failed';
+    banner.appendChild(title);
+
+    if (ok) {
+      // username line
+      var userLine = document.createElement('div');
+      userLine.className = 'result-item';
+      var udot = document.createElement('div');
+      udot.className = 'result-dot ok';
+      userLine.appendChild(udot);
+      userLine.appendChild(document.createTextNode('User: ' + username));
+      banner.appendChild(userLine);
+
+      // app line
+      var appLine = document.createElement('div');
+      appLine.className = 'result-item';
+      var adot = document.createElement('div');
+      adot.className = 'result-dot ok';
+      appLine.appendChild(adot);
+      appLine.appendChild(document.createTextNode('Application: ' + appName));
+      banner.appendChild(appLine);
+
+      // per-system results
+      var results = data.results || {};
+      Object.keys(results).forEach(function (sys) {
+        var r = results[sys];
+        var line = document.createElement('div');
+        line.className = 'result-item';
+        var dot = document.createElement('div');
+        var sysOk = r && (r.success === true || (typeof r === 'object' && !r.error));
+        dot.className = 'result-dot ' + (sysOk ? 'ok' : 'fail');
+        line.appendChild(dot);
+        var label = sys.toUpperCase() + ': ' + (sysOk ? 'enforced' : (r.error || 'failed'));
+        line.appendChild(document.createTextNode(label));
+        banner.appendChild(line);
+      });
+    } else {
+      var errLine = document.createElement('div');
+      errLine.className = 'result-item';
+      var edot = document.createElement('div');
+      edot.className = 'result-dot fail';
+      errLine.appendChild(edot);
+      var msg = (data && (data.detail || data.message)) ? String(data.detail || data.message) : 'Unknown error';
+      errLine.appendChild(document.createTextNode(msg));
+      banner.appendChild(errLine);
+    }
+
+    area.appendChild(banner);
+  }
+}());
+</script>
+</body>
+</html>

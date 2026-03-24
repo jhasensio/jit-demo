@@ -67,6 +67,11 @@ async def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/user_portal", response_class=HTMLResponse)
+async def user_portal(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse("user_portal.html", {"request": request})
+
+
 @app.get("/events")
 async def sse_events(request: Request):
     return await sse_endpoint(request)

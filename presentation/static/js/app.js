@@ -2423,18 +2423,23 @@ function previewAviOnboardRules(e) {
   ];
 
   openModal(`
-    <div class="modal-title">Preview Rules — <span class="muted-sm">${_esc(policyName)}</span></div>
-    <p style="font-size:var(--text-sm);color:var(--text-muted);margin:0 0 14px">
-      Review the 3 rules that will be created. Adjust enable, logging, and action if needed before confirming.
-    </p>
+    <div class="modal-hd">
+      <div class="modal-hd-icon modal-hd-icon--blue">&#9776;</div>
+      <div>
+        <div class="modal-hd-title">Preview Network Security Rules</div>
+        <div class="modal-hd-sub">Policy: <code class="modal-hd-code">${_esc(policyName)}</code></div>
+      </div>
+    </div>
+    <p class="modal-desc">Review the 3 rules that will be created for <strong>${_esc(appName)}</strong>. Adjust enable, logging, and action before confirming.</p>
     <div class="rule-preview-cards">
       ${ruleDefs.map(r => `
         <div class="rule-preview-card" data-default="${r.defaultAction}">
           <div class="rpc-header">
-            <span class="rpc-index">Rule ${r.index + 1}</span>
+            <span class="rpc-index rpc-index--${r.defaultAction === "ALLOW" ? "allow" : "deny"}">Rule ${r.index + 1}</span>
             <span class="rpc-name">${_esc(r.name)}</span>
+            <span class="rpc-badge rpc-badge--${r.defaultAction === "ALLOW" ? "allow" : "deny"}">${r.defaultAction}</span>
           </div>
-          <div class="rpc-match">${_esc(r.match)}</div>
+          <div class="rpc-match">&#8627; ${_esc(r.match)}</div>
           <div class="rpc-controls">
             <label class="rpc-check">
               <input type="checkbox" id="rc-${r.index}-enable" checked> Enable
@@ -2455,9 +2460,9 @@ function previewAviOnboardRules(e) {
         </div>
       `).join("")}
     </div>
-    <div class="confirm-actions" style="margin-top:16px">
-      <button class="btn btn-primary" onclick="confirmAviOnboarding()">Confirm &amp; Create</button>
-      <button class="btn" onclick="closeModal()">Cancel</button>
+    <div class="modal-footer-actions">
+      <button class="btn btn-primary" onclick="confirmAviOnboarding()">&#10003; Confirm &amp; Create</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
     </div>
   `);
 }
@@ -2611,9 +2616,16 @@ async function _doAviOnboarding(pending, ruleEdits) {
 function _buildConfigStatus(r) {
   // Determine if VS's current policy matches the mapping
   const vs = _cachedVsList.find(v => v.uuid === r.vs_uuid);
-  const ipg = r.ipaddrgroup_ref
-    ? _cachedIpGroups.find(g => g.url === r.ipaddrgroup_ref)
-    : _cachedIpGroups.find(g => g.name === r.ipaddrgroup_name);
+  // AVI URLs include a #name fragment — match by fragment or name
+  const ipg = _cachedIpGroups.find(g => {
+    if (r.ipaddrgroup_ref) {
+      if (g.url === r.ipaddrgroup_ref) return true;
+      const sf = r.ipaddrgroup_ref.split("#").pop();
+      const gf = (g.url || "").split("#").pop();
+      if (sf && gf && sf === gf) return true;
+    }
+    return g.name === (r.ipaddrgroup_name || r.ipaddrgroup_ref?.split("#").pop());
+  });
   const activeIps = ipg ? (ipg.addrs || []).length : null;
   const ipCountHtml = activeIps !== null
     ? `<span class="config-ip-count">${activeIps} active IP${activeIps !== 1 ? "s" : ""}</span>`
@@ -2625,7 +2637,8 @@ function _buildConfigStatus(r) {
   }
 
   const vsPolRef  = vs.network_security_policy_ref || "";
-  const vsPolUuid = vsPolRef.split("/").filter(Boolean).pop() || "";
+  // Strip #name fragment before comparing — AVI URLs contain uuid#name
+  const vsPolUuid = (vsPolRef.split("/").filter(Boolean).pop() || "").split("#")[0];
   const inSync    = vsPolUuid && vsPolUuid === r.policy_uuid;
   const badge = inSync
     ? `<span class="config-badge config-sync">In Sync</span>`
@@ -2639,9 +2652,9 @@ async function refreshMappings() {
   if (!tbody) return;
   try {
     const res = await fetch("/avi-policy/mappings");
-    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="8">Error loading.</td></tr>'; return; }
+    if (!res.ok) { tbody.innerHTML = '<tr><td colspan="7">Error loading.</td></tr>'; return; }
     const rows = await res.json();
-    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="muted-hint">No mappings saved.</td></tr>'; return; }
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="muted-hint">No mappings saved.</td></tr>'; return; }
     tbody.innerHTML = rows.map(r => {
       const ipg = r.ipaddrgroup_ref
         ? _cachedIpGroups.find(g => g.url === r.ipaddrgroup_ref || (g.url || "").split("#").pop() === r.ipaddrgroup_ref.split("#").pop())
@@ -2662,12 +2675,11 @@ async function refreshMappings() {
         <td class="btn-nowrap">
           <button class="btn-small btn-secondary" onclick="viewActiveIPs('${_esc(r.ipaddrgroup_ref || "")}','${_esc(r.ipaddrgroup_name || "")}')">View IPs</button>
           <button class="btn-small btn-secondary" onclick="syncMapping(${r.id},'${_esc(r.vs_uuid)}','${_esc(r.policy_uuid)}','${_esc(r.ipaddrgroup_ref || "")}')">Sync</button>
-          <button class="btn-small btn-danger" onclick="deleteMapping(${r.id})">Delete</button>
         </td>
       </tr>`;
     }).join("");
   } catch (_) {
-    tbody.innerHTML = '<tr><td colspan="8">Error loading.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7">Error loading.</td></tr>';
   }
 }
 
@@ -2679,7 +2691,7 @@ async function syncMapping(mappingId, vsUuid, policyUuid, ipgroupRef) {
   if (!vs) { showToast("VS not found in AVI — is AVI connected?", "error"); return; }
 
   const vsPolRef  = vs.network_security_policy_ref || "";
-  const vsPolUuid = vsPolRef.split("/").filter(Boolean).pop() || "";
+  const vsPolUuid = (vsPolRef.split("/").filter(Boolean).pop() || "").split("#")[0];
 
   if (vsPolUuid === policyUuid) {
     showToast("Already in sync — no changes needed.", "success");
@@ -3399,12 +3411,18 @@ async function deleteGwPolicy(policyId) {
 // ─── Target Application Definitions (DB-backed) ───────────────────────────────
 
 let _targetApps = [];
+let _onboardingStatus = [];  // [{name, avi_onboarded, nsx_onboarded}]
 
 async function refreshTargetApps() {
   try {
-    const r = await fetch("/target-apps");
-    _targetApps = r.ok ? await r.json() : [];
-  } catch (_) { _targetApps = []; }
+    const [appsRes, statusRes] = await Promise.all([
+      fetch("/target-apps"),
+      fetch("/target-apps/onboarding-status"),
+    ]);
+    _targetApps = appsRes.ok ? await appsRes.json() : [];
+    _onboardingStatus = statusRes.ok ? await statusRes.json() : [];
+  } catch (_) { _targetApps = []; _onboardingStatus = []; }
+  loadNsxOnboardedApps();
   renderTargetAppsTable();
   populateTargetAppDropdowns();
 }
@@ -3428,25 +3446,49 @@ function renderTargetAppsTable() {
     wrap.innerHTML = '<span class="placeholder">No target applications defined.</span>';
     return;
   }
-  const rows = _targetApps.map(a => `<tr>
-    <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(a.name)}</td>
-    <td style="white-space:nowrap"><code class="nsx-ip-cell">${_esc(a.ip_address)}</code></td>
-    <td style="opacity:.75">${_esc(a.description || "—")}</td>
-    <td style="white-space:nowrap;text-align:right;padding-right:8px">
-      <button class="btn btn-small" style="min-width:48px" onclick="openEditTargetAppModal(${a.id})">Edit</button>
-      <button class="btn btn-small btn-danger" style="min-width:58px" onclick="deleteTargetApp(${a.id})">Delete</button>
-    </td>
-  </tr>`).join("");
+  const rows = _targetApps.map(a => {
+    const status = _onboardingStatus.find(s => s.name === a.name) || { avi_onboarded: false, nsx_onboarded: false };
+    const aviOk  = status.avi_onboarded;
+    const nsxOk  = status.nsx_onboarded;
+    const aviBadge  = aviOk
+      ? `<span class="ob-badge ob-badge--ok" title="AVI policy mapping exists">&#10003; Onboarded</span>`
+      : `<span class="ob-badge ob-badge--no" title="No AVI policy mapping found">&#8212; Not yet</span>`;
+    const nsxBadge  = nsxOk
+      ? `<span class="ob-badge ob-badge--ok" title="vDefend JIT group exists in NSX">&#10003; Onboarded</span>`
+      : `<span class="ob-badge ob-badge--no" title="JIT security group not found in NSX">&#8212; Not yet</span>`;
+    const aviAction = !aviOk
+      ? `<button class="btn btn-small btn-secondary" onclick="switchView('view-avi-policy')">AVI Onboard</button>`
+      : "";
+    const nsxAction = !nsxOk
+      ? `<button class="btn btn-small btn-secondary" onclick="switchView('view-nsx-policy')">vDefend Onboard</button>`
+      : "";
+    return `<tr>
+      <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(a.name)}</td>
+      <td style="white-space:nowrap"><code class="nsx-ip-cell">${_esc(a.ip_address)}</code></td>
+      <td class="ob-status-cell">${aviBadge}</td>
+      <td class="ob-status-cell">${nsxBadge}</td>
+      <td style="opacity:.75">${_esc(a.description || "—")}</td>
+      <td class="btn-nowrap" style="text-align:right;padding-right:8px">
+        <button class="btn btn-small" onclick="openEditTargetAppModal(${a.id})">Edit</button>
+        <button class="btn btn-small btn-danger" onclick="deleteTargetApp(${a.id})">Delete</button>
+        ${aviAction}${nsxAction}
+      </td>
+    </tr>`;
+  }).join("");
   wrap.innerHTML = `<table class="nsp-table" style="table-layout:fixed;width:100%">
     <colgroup>
-      <col style="width:20%">
-      <col style="width:16%">
-      <col style="width:48%">
-      <col style="width:16%">
+      <col style="width:18%">
+      <col style="width:13%">
+      <col style="width:11%">
+      <col style="width:12%">
+      <col style="width:auto">
+      <col style="width:22%">
     </colgroup>
     <thead><tr>
       <th>Name</th>
-      <th style="white-space:nowrap">IP Address</th>
+      <th>IP Address</th>
+      <th>AVI Onboarded</th>
+      <th>vDefend Onboarded</th>
       <th>Description</th>
       <th></th>
     </tr></thead>
