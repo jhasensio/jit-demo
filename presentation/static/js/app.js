@@ -516,6 +516,21 @@ async function submitJITDirect(e) {
   const submitBtn = document.getElementById("jit-submit");
   const statusEl  = document.getElementById("jit-status");
 
+  // Warn if selected app hasn't been onboarded in vDefend (NSX groups not created yet)
+  if (body.target_app) {
+    const onboarded = _nsxOnboardedApps.find(a => a.target_app === body.target_app);
+    if (!onboarded) {
+      const proceed = await showConfirm(
+        `<strong>${_esc(body.target_app)}</strong> has not been onboarded in vDefend.<br><br>` +
+        `The NSX security groups (<code>${body.target_app.split("_")[0]}-JIT-active-users-ipaddr</code>) ` +
+        `don't exist yet — live enforcement calls will fail.<br><br>` +
+        `Go to <strong>Policy Configuration → vDefend → Application Onboarding</strong> first.<br><br>` +
+        `Continue anyway (payload preview only)?`
+      );
+      if (!proceed) return;
+    }
+  }
+
   submitBtn.disabled = true;
   statusEl.style.color = "var(--text-muted)";
   statusEl.textContent = "Sending…";
@@ -3080,19 +3095,24 @@ function renderTargetAppsTable() {
     <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(a.name)}</td>
     <td style="white-space:nowrap"><code class="nsx-ip-cell">${_esc(a.ip_address)}</code></td>
     <td style="opacity:.75">${_esc(a.description || "—")}</td>
-    <td style="white-space:nowrap;text-align:right">
-      <button class="btn btn-small" onclick="openEditTargetAppModal(${a.id})">Edit</button>
-      <button class="btn btn-small btn-danger" onclick="deleteTargetApp(${a.id})">Delete</button>
+    <td style="white-space:nowrap;text-align:right;padding-right:8px">
+      <button class="btn btn-small" style="min-width:48px" onclick="openEditTargetAppModal(${a.id})">Edit</button>
+      <button class="btn btn-small btn-danger" style="min-width:58px" onclick="deleteTargetApp(${a.id})">Delete</button>
     </td>
   </tr>`).join("");
   wrap.innerHTML = `<table class="nsp-table" style="table-layout:fixed;width:100%">
     <colgroup>
-      <col style="width:22%">
-      <col style="width:18%">
-      <col style="width:46%">
-      <col style="width:14%">
+      <col style="width:20%">
+      <col style="width:16%">
+      <col style="width:48%">
+      <col style="width:16%">
     </colgroup>
-    <thead><tr><th>Name</th><th>IP Address</th><th>Description</th><th></th></tr></thead>
+    <thead><tr>
+      <th>Name</th>
+      <th style="white-space:nowrap">IP Address</th>
+      <th>Description</th>
+      <th></th>
+    </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }

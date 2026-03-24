@@ -8,12 +8,20 @@ from domain.aria.models import WebhookPayload
 from domain.jit_middleware.models import DirectJITRequest, JITRequest
 from domain.jit_middleware.service import JITService
 from domain.sessions.models import Session
+from infrastructure.credential_store import credential_store
 from infrastructure.database import SessionLocal
 from infrastructure.enforcement_service import execute_live_enforcement
 from infrastructure.policy_store import PolicyStore
 from infrastructure.session_store import session_store
 
 router = APIRouter(prefix="/jit", tags=["L7 APIM"])
+
+
+def _get_hosts() -> tuple[str | None, str | None]:
+    """Return (nsx_host, avi_host) from the live credential store, or None if unconfigured."""
+    nsx_creds = credential_store.get_nsx()
+    avi_creds = credential_store.get_avi()
+    return (nsx_creds.host if nsx_creds else None), (avi_creds.host if avi_creds else None)
 
 
 def _register_session(req: JITRequest, enforcements: list, source: str) -> None:
@@ -66,7 +74,8 @@ async def jit_webhook(payload: WebhookPayload) -> dict:
     finally:
         db.close()
 
-    enforcements = JITService.generate_enforcements(req, ipaddrgroup_name=ipaddrgroup_name)
+    nsx_host, avi_host = _get_hosts()
+    enforcements = JITService.generate_enforcements(req, ipaddrgroup_name=ipaddrgroup_name, nsx_host=nsx_host, avi_host=avi_host)
 
     labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
     for label, enforcement in zip(labels, enforcements):
@@ -130,7 +139,8 @@ async def jit_direct(req: DirectJITRequest, request: Request) -> dict:
     finally:
         db.close()
 
-    enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name)
+    nsx_host, avi_host = _get_hosts()
+    enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name, nsx_host=nsx_host, avi_host=avi_host)
 
     labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
     for label, enforcement in zip(labels, enforcements):

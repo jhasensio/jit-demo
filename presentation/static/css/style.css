@@ -2438,6 +2438,16 @@ header h1 {
   overflow-y: visible;
 }
 
+/* Target Applications tab — full-width panel, no max-width cap */
+#stab-target-apps .simple-view-body {
+  padding: 16px 24px;
+}
+
+#stab-target-apps .simple-view-body .panel {
+  max-width: none;
+  width: 100%;
+}
+
 .stab-panel .connections-body {
   padding: 16px 20px;
 }

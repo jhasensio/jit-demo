@@ -59,10 +59,14 @@ async def execute_live_enforcement(
         port=port,
         access_protocol=access_protocol,
     )
-    enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name)
-
     nsx_creds = credential_store.get_nsx()
     avi_creds = credential_store.get_avi()
+    enforcements = JITService.generate_enforcements(
+        jit_req,
+        ipaddrgroup_name=ipaddrgroup_name,
+        nsx_host=nsx_creds.host if nsx_creds else None,
+        avi_host=avi_creds.host if avi_creds else None,
+    )
 
     results = []
     labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]

@@ -191,7 +191,15 @@ async def _revoke_session(session_store, session, reason: str) -> None:
             action="LOGOUT",
             original_timestamp=ts,
         )
-        enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name)
+        from infrastructure.credential_store import credential_store as _cs
+        _nsx = _cs.get_nsx()
+        _avi = _cs.get_avi()
+        enforcements = JITService.generate_enforcements(
+            jit_req,
+            ipaddrgroup_name=ipaddrgroup_name,
+            nsx_host=_nsx.host if _nsx else None,
+            avi_host=_avi.host if _avi else None,
+        )
         labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
         for label, enforcement in zip(labels, enforcements):
             await event_bus.publish(

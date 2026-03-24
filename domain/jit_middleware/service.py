@@ -6,6 +6,8 @@ class JITService:
     def generate_enforcements(
         req: JITRequest,
         ipaddrgroup_name: str | None = None,
+        nsx_host: str | None = None,
+        avi_host: str | None = None,
     ) -> list[EnforcementPayload]:
         is_login = req.action.upper() == "LOGIN"
         if is_login:
@@ -15,15 +17,19 @@ class JITService:
             # rather than overwriting the entire ip_addresses list.
             ip_expression = [{"resource_type": "IPAddressExpression", "ip_addresses": [], "remove_ip": req.source_ip}]
 
-        gfw_group = f"JIT_Edge_{req.target_app}_Authorized_IPs"
-        dfw_group = f"JIT_Workload_{req.target_app}_Authorized_IPs"
+        # Derive the group IDs using the same convention as vDefend onboarding:
+        #   HR_APP_01 → prefix "HR" → "HR-JIT-active-users-ipaddr"
+        prefix = req.target_app.split("_")[0]
+        jit_group = f"{prefix}-JIT-active-users-ipaddr"
+
+        nsx_base = (nsx_host or "https://nsx-manager.lab").rstrip("/")
 
         nsx_gfw = EnforcementPayload(
             system="vDefend Gateway Firewall",
             method="PATCH",
-            url=f"https://nsx-manager.lab/policy/api/v1/infra/domains/default/groups/{gfw_group}",
+            url=f"{nsx_base}/policy/api/v1/infra/domains/default/groups/{jit_group}",
             payload={
-                "display_name": gfw_group,
+                "display_name": jit_group,
                 "expression": ip_expression,
             },
         )
@@ -31,16 +37,17 @@ class JITService:
         nsx_dfw = EnforcementPayload(
             system="vDefend Distributed Firewall",
             method="PATCH",
-            url=f"https://nsx-manager.lab/policy/api/v1/infra/domains/default/groups/{dfw_group}",
+            url=f"{nsx_base}/policy/api/v1/infra/domains/default/groups/{jit_group}",
             payload={
-                "display_name": dfw_group,
+                "display_name": jit_group,
                 "expression": ip_expression,
             },
         )
 
         # Use the mapped IP group name if one was provided via policy mapping;
-        # fall back to the default naming convention otherwise.
-        avi_group = ipaddrgroup_name or f"JIT_{req.target_app}_Allowed"
+        # fall back to the same prefix convention otherwise.
+        avi_group = ipaddrgroup_name or f"{prefix}-JIT-active-users-ipaddr"
+        avi_base = (avi_host or "https://avi-controller.lab").rstrip("/")
 
         avi_payload: dict
         if is_login:
@@ -60,7 +67,7 @@ class JITService:
         avi_lb = EnforcementPayload(
             system="AVI Load Balancer",
             method="PUT",
-            url=f"https://avi-controller.lab/api/ipaddrgroup?name={avi_group}",
+            url=f"{avi_base}/api/ipaddrgroup?name={avi_group}",
             payload=avi_payload,
         )
 
