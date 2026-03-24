@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VMware Zero Trust — JIT Access PoC</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1774390410" />
+  <link rel="stylesheet" href="/static/css/style.css?v=1774390413" />
 </head>
 <body>
 <div id="app">
@@ -12,7 +12,7 @@
   <!-- ── Top bar ──────────────────────────────────────────────────────────── -->
   <header id="topbar">
     <div class="topbar-brand">
-      <img src="/static/img/inail-logo.svg" alt="INAIL" class="topbar-logo-img" />
+      <img src="/static/img/logo-inail.svg" alt="INAIL" class="topbar-logo-img" />
       <div>
         <div class="topbar-title">INAIL Innovation Day</div>
         <div class="topbar-subtitle">Zero Trust Demo</div>
@@ -507,7 +507,7 @@
           <div class="panel panel-network-map">
             <div class="panel-hd">Network Topology Map</div>
             <div class="panel-bd panel-bd--map">
-              <img src="/static/network-topology.svg" alt="Network Topology" class="network-map-img"
+              <img src="/static/img/network-topology.svg" alt="Network Topology" class="network-map-img"
                    onclick="openMapLightbox()" title="Click to zoom" style="cursor:zoom-in" />
             </div>
           </div>
@@ -804,28 +804,43 @@
         </div>
       </div>
       <div class="active-sessions-body">
-        <div class="panel panel-flex">
-          <div class="panel-hd">
-            Sessions
-            <div class="panel-hd-actions">
-              <span id="sessions-count" class="badge-live">0 active</span>
-              <button class="btn-clear" onclick="refreshSessions()" aria-label="Refresh sessions">Refresh</button>
+        <div class="sessions-split">
+          <div class="panel panel-flex">
+            <div class="panel-hd">
+              Sessions
+              <div class="panel-hd-actions">
+                <span id="sessions-count" class="badge-live">0 active</span>
+                <button class="btn-clear" onclick="refreshSessions()" aria-label="Refresh sessions">Refresh</button>
+              </div>
+            </div>
+            <div class="panel-scroll">
+              <table id="sessions-table">
+                <thead>
+                  <tr>
+                    <th>User</th><th>App</th><th>Source IP</th>
+                    <th>Status</th><th>Elapsed</th><th>Source</th><th></th>
+                  </tr>
+                </thead>
+                <tbody id="sessions-tbody">
+                  <tr class="sessions-empty">
+                    <td colspan="7">No sessions yet — submit a LOGIN event to register one.</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
-          <div class="panel-scroll">
-            <table id="sessions-table">
-              <thead>
-                <tr>
-                  <th>User</th><th>App</th><th>Source IP</th>
-                  <th>Status</th><th>Elapsed</th><th>Source</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="sessions-tbody">
-                <tr class="sessions-empty">
-                  <td colspan="7">No sessions yet — submit a LOGIN event to register one.</td>
-                </tr>
-              </tbody>
-            </table>
+
+          <div class="panel panel-flex panel-sessions-log">
+            <div class="panel-hd">
+              Enforcement Events
+              <div class="panel-hd-actions">
+                <label class="autoscroll-label">
+                  <input type="checkbox" id="sessions-autoscroll" checked /> Auto-scroll
+                </label>
+                <button class="btn-clear" onclick="clearSessionsLog()" aria-label="Clear log">Clear</button>
+              </div>
+            </div>
+            <div id="sessions-console" class="console-output"></div>
           </div>
         </div>
       </div>
@@ -1023,13 +1038,13 @@
     <button class="mlb-btn mlb-close" onclick="closeMapLightbox()" title="Close">&#10005;</button>
   </div>
   <div class="mlb-viewport" id="mlb-viewport" onclick="if(event.target===this)closeMapLightbox()">
-    <img id="mlb-img" src="/static/network-topology.svg" alt="Network Topology Map" />
+    <img id="mlb-img" src="/static/img/network-topology.svg" alt="Network Topology Map" />
   </div>
 </div>
 
 <!-- ── Toast notifications ──────────────────────────────────────────────── -->
 <div id="toast-container"></div>
 
-<script src="/static/js/app.js?v=1774390412"></script>
+<script src="/static/js/app.js?v=1774390413"></script>
 </body>
 </html>

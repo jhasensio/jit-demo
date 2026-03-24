@@ -192,6 +192,15 @@ function appendLog(event) {
   } else {
     _renderLogEntry(event, "jit-console", document.getElementById("jit-autoscroll")?.checked ?? true, false);
   }
+  // Mirror SESSION + CONNECTIONS events into the sessions view log
+  if (event.domain === "SESSION" || event.domain === "CONNECTIONS" || event.domain === "JIT") {
+    _renderLogEntry(event, "sessions-console", document.getElementById("sessions-autoscroll")?.checked ?? true, false);
+  }
+}
+
+function clearSessionsLog() {
+  const el = document.getElementById("sessions-console");
+  if (el) el.textContent = "";
 }
 
 function _renderLogEntry(event, outputId, autoScroll, showPayload) {

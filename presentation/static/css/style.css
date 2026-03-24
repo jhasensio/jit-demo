@@ -3574,3 +3574,20 @@ header h1 {
   color: var(--text-muted);
   border: 1px solid var(--box-border);
 }
+
+/* ─── Active Sessions split layout ──────────────────────────────────────────── */
+.sessions-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.panel-sessions-log .console-output {
+  min-height: 260px;
+  max-height: 420px;
+}
+
+@media (max-width: 900px) {
+  .sessions-split { grid-template-columns: 1fr; }
+}

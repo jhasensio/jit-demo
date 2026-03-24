@@ -57,25 +57,56 @@ async def update_settings(settings: SessionSettings) -> SessionSettings:
 @router.post("/{session_id}/kill")
 async def kill_session(session_id: str) -> dict:
     """
-    Kill a session via the mock IDSP API.
-    Sets the mock IDSP session to inactive — the poller detects this on its next cycle.
+    Kill a session: marks it revoked immediately and runs live LOGOUT enforcement
+    to withdraw the source IP from NSX/AVI IP groups right away.
     """
     session = session_store.get_by_id(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
 
+    # Mark IDSP inactive so the poller does not double-enforce
     session_store.mock_idsp_set_active(session_id, False)
+    # Immediately revoke in our session store (don't wait for next poll cycle)
+    session_store.mark_revoked(session.session_key)
 
     await event_bus.publish(
         {
             "level": "INFO",
             "domain": "SESSION",
             "message": (
-                f"IDSP session killed (mock): {session.username}@{session.target_app} "
-                f"— poller will revoke on next cycle"
+                f"Session killed: {session.username}@{session.target_app} "
+                f"from {session.source_ip} — enforcing LOGOUT now"
             ),
             "payload": {"session_id": session_id, "username": session.username},
         }
     )
 
-    return {"status": "killed", "session_id": session_id, "username": session.username}
+    from infrastructure.enforcement_service import execute_live_enforcement
+
+    results = await execute_live_enforcement(
+        username=session.username,
+        source_ip=session.source_ip,
+        target_app=session.target_app,
+        action="LOGOUT",
+        source="manual-kill",
+    )
+
+    ok_count = sum(1 for r in results if r.get("success"))
+    await event_bus.publish(
+        {
+            "level": "SUCCESS" if ok_count == len(results) else "ERROR",
+            "domain": "SESSION",
+            "message": (
+                f"LOGOUT enforced: {ok_count}/{len(results)} system(s) updated "
+                f"for {session.username} ({session.source_ip})"
+            ),
+            "payload": None,
+        }
+    )
+
+    return {
+        "status": "killed",
+        "session_id": session_id,
+        "username": session.username,
+        "enforcement": results,
+    }
