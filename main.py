@@ -15,6 +15,7 @@ from infrastructure.udp_listener import start_aria_udp
 from infrastructure.session_poller import start_session_poller
 from presentation.api.aria_router import router as aria_router
 from presentation.api.avi_policy_router import router as avi_policy_router
+from presentation.api.nsx_policy_router import router as nsx_policy_router
 from presentation.api.connections_router import router as connections_router
 from presentation.api.demo_router import router as demo_router
 from presentation.api.idsp_router import router as idsp_router
@@ -49,6 +50,7 @@ app.include_router(connections_router)
 app.include_router(demo_router)
 app.include_router(sessions_router)
 app.include_router(avi_policy_router)
+app.include_router(nsx_policy_router)
 
 
 @app.get("/client-ip")

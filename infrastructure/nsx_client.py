@@ -120,3 +120,96 @@ class NSXClient:
             }
         except Exception as exc:
             return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+
+    # ── Policy API read methods ───────────────────────────────────────────────
+
+    async def list_groups(self) -> dict:
+        """GET /policy/api/v1/infra/domains/default/groups → {"success", "results", "error"}"""
+        try:
+            async with self._mk_client() as c:
+                r = await c.get(
+                    f"{self._base()}/policy/api/v1/infra/domains/default/groups",
+                    params={"page_size": 1000},
+                )
+            if r.status_code == 200:
+                return {"success": True, "results": r.json().get("results", []), "error": None}
+            return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "results": [], "error": str(exc)}
+
+    async def list_gateway_policies(self) -> dict:
+        """GET /policy/api/v1/infra/domains/default/gateway-policies → {"success", "results", "error"}"""
+        try:
+            async with self._mk_client() as c:
+                r = await c.get(
+                    f"{self._base()}/policy/api/v1/infra/domains/default/gateway-policies",
+                    params={"page_size": 1000},
+                )
+            if r.status_code == 200:
+                return {"success": True, "results": r.json().get("results", []), "error": None}
+            return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "results": [], "error": str(exc)}
+
+    async def get_gateway_policy(self, policy_id: str) -> dict:
+        """GET .../gateway-policies/{policy_id} → {"success", "result", "error"}"""
+        try:
+            async with self._mk_client() as c:
+                r = await c.get(
+                    f"{self._base()}/policy/api/v1/infra/domains/default/gateway-policies/{policy_id}"
+                )
+            if r.status_code == 200:
+                return {"success": True, "result": r.json(), "error": None}
+            return {"success": False, "result": None, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "result": None, "error": str(exc)}
+
+    async def create_or_update_gateway_policy(self, policy_id: str, payload: dict) -> dict:
+        """PUT .../gateway-policies/{policy_id} — intent-based create-or-update."""
+        try:
+            async with self._mk_client() as c:
+                r = await c.put(
+                    f"{self._base()}/policy/api/v1/infra/domains/default/gateway-policies/{policy_id}",
+                    json=payload,
+                )
+            success = r.status_code in (200, 201)
+            body = {}
+            try:
+                body = r.json()
+            except Exception:
+                pass
+            return {
+                "success": success,
+                "status_code": r.status_code,
+                "body": body,
+                "error": None if success else r.text[:300],
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+
+    async def delete_gateway_policy(self, policy_id: str) -> dict:
+        """DELETE .../gateway-policies/{policy_id}"""
+        try:
+            async with self._mk_client() as c:
+                r = await c.delete(
+                    f"{self._base()}/policy/api/v1/infra/domains/default/gateway-policies/{policy_id}"
+                )
+            success = r.status_code in (200, 204)
+            return {
+                "success": success,
+                "status_code": r.status_code,
+                "error": None if success else r.text[:300],
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "error": str(exc)}
+
+    async def list_tier0s(self) -> dict:
+        """GET /policy/api/v1/infra/tier-0s → {"success", "results", "error"}"""
+        try:
+            async with self._mk_client() as c:
+                r = await c.get(f"{self._base()}/policy/api/v1/infra/tier-0s")
+            if r.status_code == 200:
+                return {"success": True, "results": r.json().get("results", []), "error": None}
+            return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "results": [], "error": str(exc)}

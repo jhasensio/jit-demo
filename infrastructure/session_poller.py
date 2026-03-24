@@ -167,6 +167,20 @@ async def _revoke_session(session_store, session, reason: str) -> None:
         )
     else:
         # Generate payloads without calling live APIs (publish only)
+        from infrastructure.database import SessionLocal
+        from infrastructure.policy_store import PolicyStore
+
+        db = SessionLocal()
+        try:
+            mapping = PolicyStore(db).get_by_target_app(session.target_app)
+            ipaddrgroup_name = (
+                mapping.ipaddrgroup_name
+                if mapping and mapping.ipaddrgroup_name
+                else None
+            )
+        finally:
+            db.close()
+
         ts = datetime.now(timezone.utc).isoformat()
         jit_req = JITRequest(
             source="auto-revoke",
@@ -177,8 +191,8 @@ async def _revoke_session(session_store, session, reason: str) -> None:
             action="LOGOUT",
             original_timestamp=ts,
         )
-        enforcements = JITService.generate_enforcements(jit_req)
-        labels = ["[1/3] NSX GFW", "[2/3] NSX DFW", "[3/3] AVI LB"]
+        enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name)
+        labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
         for label, enforcement in zip(labels, enforcements):
             await event_bus.publish(
                 {

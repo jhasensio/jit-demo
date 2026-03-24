@@ -10,7 +10,9 @@ from domain.jit_middleware.models import JITRequest
 from domain.jit_middleware.service import JITService
 from infrastructure.avi_client import AVIClient
 from infrastructure.credential_store import credential_store
+from infrastructure.database import SessionLocal
 from infrastructure.nsx_client import NSXClient
+from infrastructure.policy_store import PolicyStore
 
 
 async def execute_live_enforcement(
@@ -32,6 +34,18 @@ async def execute_live_enforcement(
     """
     ts = datetime.now(timezone.utc).isoformat()
 
+    # Resolve the AVI IP address group name from the saved policy mapping.
+    db = SessionLocal()
+    try:
+        mapping = PolicyStore(db).get_by_target_app(target_app)
+        ipaddrgroup_name = (
+            mapping.ipaddrgroup_name
+            if mapping and mapping.ipaddrgroup_name
+            else None
+        )
+    finally:
+        db.close()
+
     jit_req = JITRequest(
         source=source,
         event_type="Auto-Revocation" if source == "auto-revoke" else "Live Enforcement",
@@ -45,7 +59,7 @@ async def execute_live_enforcement(
         port=port,
         access_protocol=access_protocol,
     )
-    enforcements = JITService.generate_enforcements(jit_req)
+    enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name)
 
     nsx_creds = credential_store.get_nsx()
     avi_creds = credential_store.get_avi()

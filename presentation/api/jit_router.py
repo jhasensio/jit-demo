@@ -8,7 +8,9 @@ from domain.aria.models import WebhookPayload
 from domain.jit_middleware.models import DirectJITRequest, JITRequest
 from domain.jit_middleware.service import JITService
 from domain.sessions.models import Session
+from infrastructure.database import SessionLocal
 from infrastructure.enforcement_service import execute_live_enforcement
+from infrastructure.policy_store import PolicyStore
 from infrastructure.session_store import session_store
 
 router = APIRouter(prefix="/jit", tags=["L7 APIM"])
@@ -57,7 +59,14 @@ async def jit_webhook(payload: WebhookPayload) -> dict:
         access_protocol=payload.access_protocol,
     )
 
-    enforcements = JITService.generate_enforcements(req)
+    db = SessionLocal()
+    try:
+        mapping = PolicyStore(db).get_by_target_app(payload.target_app)
+        ipaddrgroup_name = mapping.ipaddrgroup_name if mapping and mapping.ipaddrgroup_name else None
+    finally:
+        db.close()
+
+    enforcements = JITService.generate_enforcements(req, ipaddrgroup_name=ipaddrgroup_name)
 
     labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
     for label, enforcement in zip(labels, enforcements):
@@ -114,7 +123,14 @@ async def jit_direct(req: DirectJITRequest, request: Request) -> dict:
         access_protocol=req.access_protocol,
     )
 
-    enforcements = JITService.generate_enforcements(jit_req)
+    db = SessionLocal()
+    try:
+        mapping = PolicyStore(db).get_by_target_app(req.target_app)
+        ipaddrgroup_name = mapping.ipaddrgroup_name if mapping and mapping.ipaddrgroup_name else None
+    finally:
+        db.close()
+
+    enforcements = JITService.generate_enforcements(jit_req, ipaddrgroup_name=ipaddrgroup_name)
 
     labels = ["[1/3] vDefend GFW", "[2/3] vDefend DFW", "[3/3] AVI LB"]
     for label, enforcement in zip(labels, enforcements):

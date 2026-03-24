@@ -19,6 +19,10 @@ class CredentialStore:
     def get_nsx(self) -> Optional[NSXCredentials]:
         return self._nsx
 
+    def clear_nsx(self) -> None:
+        self._nsx = None
+        self._nsx_status = "unconfigured"
+
     def set_nsx_status(self, status: str) -> None:
         self._nsx_status = status
 
@@ -31,6 +35,10 @@ class CredentialStore:
 
     def get_avi(self) -> Optional[AVICredentials]:
         return self._avi
+
+    def clear_avi(self) -> None:
+        self._avi = None
+        self._avi_status = "unconfigured"
 
     def set_avi_status(self, status: str) -> None:
         self._avi_status = status

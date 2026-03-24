@@ -59,7 +59,7 @@ async def save_and_test_avi(creds: AVICredentials) -> dict:
         "domain": "CONNECTIONS",
         "message": (
             f"Testing AVI connection → {creds.host} "
-            f"(user: {creds.username}, tenant: {creds.tenant})"
+            f"(user: {creds.username}, configured version: {creds.avi_version})"
         ),
         "payload": None,
     })
@@ -83,7 +83,49 @@ async def save_and_test_avi(creds: AVICredentials) -> dict:
             "payload": None,
         })
 
-    return {"host": creds.host, **result}
+    return {"host": creds.host, "configured_version": creds.avi_version, **result}
+
+
+@router.patch("/avi/version")
+async def update_avi_version(body: dict) -> dict:
+    """Update only the AVI API version on the stored credentials."""
+    new_version = (body.get("version") or "").strip()
+    if not new_version:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="version is required")
+    creds = credential_store.get_avi()
+    if creds is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="AVI not configured")
+    updated = creds.model_copy(update={"avi_version": new_version})
+    credential_store.set_avi(updated)
+    return {"updated": True, "avi_version": new_version}
+
+
+@router.delete("/nsx")
+async def disconnect_nsx() -> dict:
+    """Clear NSX credentials and reset status to unconfigured."""
+    credential_store.clear_nsx()
+    await event_bus.publish({
+        "level": "INFO",
+        "domain": "CONNECTIONS",
+        "message": "NSX connector disconnected",
+        "payload": None,
+    })
+    return {"disconnected": True}
+
+
+@router.delete("/avi")
+async def disconnect_avi() -> dict:
+    """Clear AVI credentials and reset status to unconfigured."""
+    credential_store.clear_avi()
+    await event_bus.publish({
+        "level": "INFO",
+        "domain": "CONNECTIONS",
+        "message": "AVI connector disconnected",
+        "payload": None,
+    })
+    return {"disconnected": True}
 
 
 @router.get("/status")
@@ -96,4 +138,5 @@ async def connection_status() -> ConnectionStatus:
         avi=credential_store.get_avi_status(),
         nsx_host=nsx.host if nsx else None,
         avi_host=avi.host if avi else None,
+        avi_version=avi.avi_version if avi else None,
     )

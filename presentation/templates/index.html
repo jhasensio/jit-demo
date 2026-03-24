@@ -9,13 +9,31 @@
 <body>
 <div id="app">
 
+  <!-- ── Top bar ──────────────────────────────────────────────────────────── -->
+  <header id="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-logo">ZT</div>
+      <div>
+        <div class="topbar-title">Zero Trust</div>
+        <div class="topbar-subtitle">JIT Access PoC</div>
+      </div>
+    </div>
+    <div class="topbar-connectors">
+      <div class="topbar-conn-badge" id="topbar-badge-nsx">
+        <span class="tc-dot"></span>
+        <span class="tc-label">NSX</span>
+        <span class="tc-host" id="topbar-host-nsx">—</span>
+      </div>
+      <div class="topbar-conn-badge" id="topbar-badge-avi">
+        <span class="tc-dot"></span>
+        <span class="tc-label">AVI</span>
+        <span class="tc-host" id="topbar-host-avi">—</span>
+      </div>
+    </div>
+  </header>
+
   <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
   <nav id="sidebar">
-    <div class="sb-brand">
-      <span class="sb-logo">ZT</span>
-      <span class="sb-name">Zero Trust</span>
-    </div>
-
     <div class="sb-nav">
 
       <!-- Simulation -->
@@ -42,7 +60,7 @@
         </button>
         <div class="sb-sub" id="policy-sub">
           <button class="sb-item--leaf" data-view="avi-policy">AVI</button>
-          <button class="sb-item--leaf disabled" data-view="nsx-policy">NSX</button>
+          <button class="sb-item--leaf" data-view="nsx-policy">vDefend</button>
         </div>
 
         <button class="sb-item sb-item--child" data-view="active-sessions">
@@ -59,8 +77,8 @@
     </div>
 
     <div class="sb-footer">
-      <label class="theme-toggle" title="Toggle light/dark theme">
-        <input type="checkbox" id="theme-switch" onchange="toggleTheme()">
+      <label class="theme-toggle" title="Toggle light/dark theme" aria-label="Toggle light/dark theme">
+        <input type="checkbox" id="theme-switch" onchange="toggleTheme()" aria-label="Dark mode">
         <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
         <span class="theme-toggle-label">Dark</span>
       </label>
@@ -311,7 +329,7 @@
           <!-- Step 4: revocation trigger + revocation cards -->
           <div id="step4-panel" class="step-panel" style="display:none">
 
-            <div class="demo-reveal-label" style="margin-bottom:8px;">Select Revocation Trigger</div>
+            <div class="demo-reveal-label">Select Revocation Trigger</div>
             <div id="revoke-trigger-cards" class="revoke-trigger-grid">
               <div class="revoke-trigger-card active" data-rtype="logout" onclick="selectRevokeType('logout')">
                 <span class="rtc-icon">&#8682;</span>
@@ -325,12 +343,11 @@
               </div>
             </div>
 
-            <button id="btn-demo-revoke" class="btn btn-primary demo-submit-btn"
-                    style="background:var(--text-error); border-color:var(--text-error);"
+            <button id="btn-demo-revoke" class="btn btn-danger demo-submit-btn"
                     onclick="_demoRevoke()">
               &#9888; Trigger Revocation
             </button>
-            <div id="demo-revoke-status" style="font-size:0.72rem; margin-top:7px; min-height:16px; text-align:center;"></div>
+            <div id="demo-revoke-status" class="status-hint--center"></div>
 
             <div id="demo-revoke-cards"></div>
 
@@ -600,6 +617,20 @@
               <span class="conn-badge conn-badge-unconfigured" id="badge-nsx">unconfigured</span>
             </div>
             <div class="panel-bd">
+              <!-- Connected state -->
+              <div id="nsx-connected-state" style="display:none">
+                <div class="conn-connected-row">
+                  <div class="conn-connected-info">
+                    <span class="conn-connected-dot"></span>
+                    <div>
+                      <div class="conn-connected-host" id="nsx-connected-host">—</div>
+                      <div class="conn-connected-sub" id="nsx-connected-sub"></div>
+                    </div>
+                  </div>
+                  <button class="btn-small btn-danger" onclick="disconnectConnector('nsx')">Disconnect</button>
+                </div>
+              </div>
+              <!-- Form state -->
               <form id="nsx-form" onsubmit="saveNSXCreds(event)">
                 <div class="form-group">
                   <label for="nsx-host">Host / IP</label>
@@ -613,9 +644,6 @@
                   <label for="nsx-pass">Password</label>
                   <input type="password" id="nsx-pass" placeholder="••••••••" autocomplete="new-password" required />
                 </div>
-                <div class="form-group form-group-inline">
-                  <label><input type="checkbox" id="nsx-verify-ssl" /> Verify SSL Certificate</label>
-                </div>
                 <button type="submit" class="btn btn-primary conn-submit-btn" id="btn-nsx-save">Save &amp; Test</button>
                 <p id="nsx-test-status" class="conn-test-status"></p>
               </form>
@@ -628,6 +656,20 @@
               <span class="conn-badge conn-badge-unconfigured" id="badge-avi">unconfigured</span>
             </div>
             <div class="panel-bd">
+              <!-- Connected state -->
+              <div id="avi-connected-state" style="display:none">
+                <div class="conn-connected-row">
+                  <div class="conn-connected-info">
+                    <span class="conn-connected-dot"></span>
+                    <div>
+                      <div class="conn-connected-host" id="avi-connected-host">—</div>
+                      <div class="conn-connected-sub" id="avi-connected-sub"></div>
+                    </div>
+                  </div>
+                  <button class="btn-small btn-danger" onclick="disconnectConnector('avi')">Disconnect</button>
+                </div>
+              </div>
+              <!-- Form state -->
               <form id="avi-form" onsubmit="saveAVICreds(event)">
                 <div class="form-group">
                   <label for="avi-host">Host / IP</label>
@@ -642,11 +684,8 @@
                   <input type="password" id="avi-pass" placeholder="••••••••" autocomplete="new-password" required />
                 </div>
                 <div class="form-group">
-                  <label for="avi-tenant">Tenant</label>
-                  <input type="text" id="avi-tenant" placeholder="admin" value="admin" autocomplete="off" />
-                </div>
-                <div class="form-group form-group-inline">
-                  <label><input type="checkbox" id="avi-verify-ssl" /> Verify SSL Certificate</label>
+                  <label for="avi-version">AVI Version</label>
+                  <input type="text" id="avi-version" placeholder="31.2.2" value="31.2.2" autocomplete="off" required />
                 </div>
                 <button type="submit" class="btn btn-primary conn-submit-btn" id="btn-avi-save">Save &amp; Test</button>
                 <p id="avi-test-status" class="conn-test-status"></p>
@@ -687,8 +726,8 @@
                     <span class="settings-hint">(calls live NSX/AVI if connections are ok)</span>
                   </label>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px;">Save Settings</button>
-                <div id="settings-status" style="font-size:0.7rem; margin-top:6px; min-height:14px; text-align:center;"></div>
+                <button type="submit" class="btn btn-primary btn-full btn-mt">Save Settings</button>
+                <div id="settings-status" class="status-hint--center"></div>
               </form>
             </div>
           </div>
@@ -700,12 +739,12 @@
         <div class="simple-view-body">
           <div class="panel">
             <div class="panel-hd">Mock IDSP Endpoint</div>
-            <div class="panel-bd" style="font-size:0.68rem; color:var(--text-muted); line-height:1.7;">
-              <p>The mock IDSP endpoint simulates <strong style="color:var(--text-primary);">Symantec PAM 4.x</strong> session state.</p>
-              <p style="margin-top:6px;">Clicking <strong style="color:var(--text-primary);">Kill</strong> on a session (in Active Sessions) marks it inactive in the mock API. The poller detects this on its next cycle and triggers revocation.</p>
-              <p style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                <code style="font-family:var(--font-mono); font-size:0.62rem; color:var(--accent);">GET /idsp/sessions/{sessionId}</code>
-                <button id="btn-copy-idsp-curl" class="btn-copy-curl" onclick="copyIDSPCurl()" title="Copy cURL for first active session">Copy cURL</button>
+            <div class="panel-bd idsp-info-body">
+              <p>The mock IDSP endpoint simulates <strong>Symantec PAM 4.x</strong> session state.</p>
+              <p class="idsp-info-para">Clicking <strong>Kill</strong> on a session (in Active Sessions) marks it inactive in the mock API. The poller detects this on its next cycle and triggers revocation.</p>
+              <p class="endpoint-row idsp-info-para--lg">
+                <code class="endpoint-code">GET /idsp/sessions/{sessionId}</code>
+                <button id="btn-copy-idsp-curl" class="btn-copy-curl" onclick="copyIDSPCurl()" title="Copy cURL for first active session" aria-label="Copy cURL command">Copy cURL</button>
               </p>
             </div>
           </div>
@@ -726,9 +765,9 @@
         <div class="panel panel-flex">
           <div class="panel-hd">
             Sessions
-            <div style="display:flex; gap:8px; align-items:center;">
+            <div class="panel-hd-actions">
               <span id="sessions-count" class="badge-live">0 active</span>
-              <button class="btn-clear" onclick="refreshSessions()">Refresh</button>
+              <button class="btn-clear" onclick="refreshSessions()" aria-label="Refresh sessions">Refresh</button>
             </div>
           </div>
           <div class="panel-scroll">
@@ -764,10 +803,10 @@
         <!-- ── AVI Current Network Policies ── -->
         <div class="panel">
           <div class="panel-hd">
-            AVI Current Network Policies
-            <div style="display:flex; gap:6px;">
+            Network Security Policy
+            <div class="panel-hd-actions">
               <button class="btn btn-small btn-primary" onclick="openCreateNspModal()">+ New Policy</button>
-              <button class="btn-clear" onclick="refreshAviPolicies()">&#8635;</button>
+              <button class="btn-clear" onclick="refreshAviPolicies()" aria-label="Refresh AVI policies">&#8635;</button>
             </div>
           </div>
           <div class="panel-bd">
@@ -786,31 +825,32 @@
           <div class="panel-bd">
             <form id="avi-attach-form" onsubmit="attachPolicyToVS(event)">
               <div class="avi-attach-row">
-                <div class="form-group" style="margin:0;">
+                <div class="form-group form-group--flush">
                   <label for="attach-target-app">Target Application</label>
-                  <select id="attach-target-app">
+                  <select id="attach-target-app" required>
+                    <option value="">— select target application —</option>
                     <option value="HR_APP_01">HR_APP_01</option>
                     <option value="FIN_APP_01">FIN_APP_01</option>
                     <option value="ENG_APP_01">ENG_APP_01</option>
                   </select>
                 </div>
-                <div class="form-group" style="margin:0;">
+                <div class="form-group form-group--flush">
                   <label for="attach-policy">Network Security Policy</label>
                   <select id="attach-policy" required>
                     <option value="">— Connect to AVI to load —</option>
                   </select>
                 </div>
-                <div class="form-group" style="margin:0;">
+                <div class="form-group form-group--flush">
                   <label for="attach-vs">Virtual Service</label>
                   <select id="attach-vs" required>
                     <option value="">— Connect to AVI to load —</option>
                   </select>
                 </div>
-                <div style="display:flex; align-items:flex-end;">
-                  <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Attach &amp; Save</button>
+                <div class="form-submit-col">
+                  <button type="submit" class="btn btn-primary btn-nowrap">Attach &amp; Save</button>
                 </div>
               </div>
-              <div id="nsp-attach-status" style="font-size:0.7rem; margin-top:6px; min-height:14px;"></div>
+              <div id="nsp-attach-status" class="status-hint"></div>
             </form>
           </div>
         </div>
@@ -819,18 +859,18 @@
         <div class="panel panel-flex">
           <div class="panel-hd">
             Policy Mappings
-            <button class="btn-clear" onclick="refreshMappings()">Refresh</button>
+            <button class="btn-clear" onclick="refreshMappingsLive()">Refresh</button>
           </div>
           <div class="panel-scroll">
             <table id="mappings-table">
               <thead>
                 <tr>
-                  <th>Target App</th><th>Virtual Service</th>
-                  <th>Policy</th><th>Created</th><th></th>
+                  <th>Target App</th><th>Virtual Service</th><th>VIP</th>
+                  <th>Policy</th><th>Config Status</th><th>Created</th><th></th>
                 </tr>
               </thead>
               <tbody id="mappings-tbody">
-                <tr class="mappings-empty"><td colspan="5">No mappings saved yet.</td></tr>
+                <tr class="mappings-empty"><td colspan="7">No mappings saved yet.</td></tr>
               </tbody>
             </table>
           </div>
@@ -839,14 +879,87 @@
       </div><!-- /avi-policy-stacked -->
     </div><!-- /view-avi-policy -->
 
-    <!-- ── View: NSX Policy (placeholder) ────────────────────────────────── -->
+    <!-- ── View: vDefend (NSX) Policy Configuration ─────────────────────── -->
     <div id="view-nsx-policy" class="view">
-      <div class="settings-page-header">
+      <div class="avi-policy-header">
         <div>
-          <h2>NSX Policy Configuration <span class="dim">— Coming Soon</span></h2>
-          <p>NSX Policy Configuration will be available in a future release.</p>
+          <h2>vDefend Policy Configuration <span class="dim">— Gateway Firewall</span></h2>
+          <p>Configure NSX Security Groups and Gateway Firewall Policies for JIT access control.</p>
         </div>
       </div>
+
+      <div class="avi-policy-stacked">
+
+        <!-- ── Security Groups ── -->
+        <div class="panel">
+          <div class="panel-hd">
+            Security Groups
+            <div class="panel-hd-actions">
+              <button class="btn-clear" onclick="refreshNsxGroups()" aria-label="Refresh groups">&#8635;</button>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <div class="nsp-search-bar">
+              <input type="search" id="nsx-group-search" placeholder="Search groups…" oninput="onNsxGroupSearch(this.value)" autocomplete="off" />
+            </div>
+            <div id="nsx-groups-table-wrap">
+              <span class="placeholder">Connect to NSX Manager to load groups…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Map Target App → Destination Security Group ── -->
+        <div class="panel">
+          <div class="panel-hd">Map Target Application to Destination Security Group</div>
+          <div class="panel-bd">
+            <form id="nsx-group-map-form" onsubmit="saveNsxGroupMapping(event)">
+              <div class="avi-attach-row">
+                <div class="form-group form-group--flush">
+                  <label for="nsx-map-target-app">Target Application</label>
+                  <select id="nsx-map-target-app" required>
+                    <option value="">— select target application —</option>
+                    <option value="HR_APP_01">HR_APP_01</option>
+                    <option value="FIN_APP_01">FIN_APP_01</option>
+                    <option value="ENG_APP_01">ENG_APP_01</option>
+                  </select>
+                </div>
+                <div class="form-group form-group--flush">
+                  <label for="nsx-map-group">Destination Security Group</label>
+                  <select id="nsx-map-group" required>
+                    <option value="">— Connect to NSX to load —</option>
+                  </select>
+                </div>
+                <div class="form-submit-col">
+                  <button type="submit" class="btn btn-primary btn-nowrap">Save Mapping</button>
+                </div>
+              </div>
+            </form>
+            <div id="nsx-group-mappings-wrap" style="margin-top:12px;">
+              <span class="placeholder">No mappings saved yet.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Gateway Firewall Policies ── -->
+        <div class="panel">
+          <div class="panel-hd">
+            Gateway Firewall Policies
+            <div class="panel-hd-actions">
+              <button class="btn btn-small btn-primary" onclick="openCreateGwPolicyModal()">+ New Policy</button>
+              <button class="btn-clear" onclick="refreshNsxGwPolicies()" aria-label="Refresh policies">&#8635;</button>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <div class="nsp-search-bar">
+              <input type="search" id="nsx-gwp-search" placeholder="Search policies…" oninput="onNsxGwpSearch(this.value)" autocomplete="off" />
+            </div>
+            <div id="nsx-gwp-table-wrap">
+              <span class="placeholder">Connect to NSX Manager to load policies…</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /avi-policy-stacked -->
     </div><!-- /view-nsx-policy -->
 
   </div><!-- /content -->
@@ -854,7 +967,7 @@
 </div><!-- /app -->
 
 <!-- ── Custom modal overlay ──────────────────────────────────────────────── -->
-<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+<div id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-content" onclick="if(event.target===this)closeModal()">
   <div id="modal">
     <div id="modal-content"></div>
   </div>

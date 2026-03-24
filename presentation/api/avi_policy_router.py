@@ -101,13 +101,22 @@ async def get_nsp_references(uuid: str) -> dict:
 
 @router.post("/create")
 async def create_networksecuritypolicy(body: dict) -> dict:
-    name             = body.get("name", "").strip()
-    ipaddrgroup_ref  = body.get("ipaddrgroup_ref", "").strip()
-    if not name or not ipaddrgroup_ref:
-        raise HTTPException(status_code=422, detail="name and ipaddrgroup_ref are required")
+    name  = body.get("name", "").strip()
+    rules = body.get("rules")          # advanced mode: full rules array
+    if not name:
+        raise HTTPException(status_code=422, detail="name is required")
 
     client = _get_avi_client()
-    result = await client.create_networksecuritypolicy(name, ipaddrgroup_ref)
+
+    if rules:
+        # Advanced mode — caller provides the complete rules array
+        result = await client.create_networksecuritypolicy_advanced(name, rules)
+    else:
+        # Legacy mode — single IP group + deny-cleanup
+        ipaddrgroup_ref = body.get("ipaddrgroup_ref", "").strip()
+        if not ipaddrgroup_ref:
+            raise HTTPException(status_code=422, detail="ipaddrgroup_ref is required in legacy mode")
+        result = await client.create_networksecuritypolicy(name, ipaddrgroup_ref)
 
     await event_bus.publish({
         "level": "SUCCESS" if result["success"] else "ERROR",

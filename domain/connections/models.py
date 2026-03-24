@@ -17,8 +17,12 @@ class AVICredentials(BaseModel):
     host: str
     username: str
     password: str
-    tenant: str = "admin"
+    avi_version: str = "31.2.2"
     verify_ssl: bool = False
+
+    @property
+    def tenant(self) -> str:
+        return "admin"
 
     @field_validator("host")
     @classmethod
@@ -31,3 +35,4 @@ class ConnectionStatus(BaseModel):
     avi: str
     nsx_host: str | None = None
     avi_host: str | None = None
+    avi_version: str | None = None

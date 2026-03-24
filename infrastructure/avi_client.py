@@ -41,7 +41,8 @@ class AVIClient:
             self._host(),
             self._creds.username,
             self._creds.password,
-            tenant=self._creds.tenant,
+            tenant="admin",
+            api_version=self._creds.avi_version,
             verify=self._creds.verify_ssl,
         )
 
@@ -85,7 +86,16 @@ class AVIClient:
 
     def _sync_test(self) -> dict:
         try:
-            session = self._session()
+            # Connect WITHOUT X-Avi-Version so the controller always accepts the
+            # request and returns its own real version.  The configured api_version
+            # is only used for subsequent data-plane API calls via _session().
+            session = ApiSession.get_session(
+                self._host(),
+                self._creds.username,
+                self._creds.password,
+                tenant="admin",
+                verify=self._creds.verify_ssl,
+            )
             r = session.get("cluster/runtime")
             if r.status_code == 200:
                 body = r.json()
@@ -186,6 +196,12 @@ class AVIClient:
             return {"success": False, "body": {}, "error": _INSTALL_MSG}
         return await asyncio.to_thread(self._sync_create_nsp, name, ipaddrgroup_ref)
 
+    async def create_networksecuritypolicy_advanced(self, name: str, rules: list) -> dict:
+        """POST a new NetworkSecurityPolicy with a caller-supplied rules array."""
+        if not _HAS_SDK:
+            return {"success": False, "body": {}, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_create_nsp_advanced, name, rules)
+
     async def list_virtualservices(self) -> dict:
         """GET api/virtualservice — returns {"success", "results", "error"}."""
         if not _HAS_SDK:
@@ -252,6 +268,28 @@ class AVIClient:
                 },
             ],
         }
+        try:
+            session = self._session()
+            r = session.post("networksecuritypolicy", data=payload)
+            success = r.status_code in (200, 201)
+            body: dict = {}
+            try:
+                body = r.json()
+            except Exception:
+                pass
+            return {
+                "success": success,
+                "status_code": r.status_code,
+                "body": body,
+                "error": None if success else r.text[:300],
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_create_nsp_advanced(self, name: str, rules: list) -> dict:
+        payload = {"name": name, "rules": rules}
         try:
             session = self._session()
             r = session.post("networksecuritypolicy", data=payload)

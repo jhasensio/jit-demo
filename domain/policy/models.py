@@ -21,6 +21,7 @@ class PolicyMapping(Base):
     policy_uuid      = Column(String, nullable=False)
     ipaddrgroup_name = Column(String, nullable=True)
     ipaddrgroup_ref  = Column(String, nullable=True)
+    vip_address      = Column(String, nullable=True)
     created_at       = Column(DateTime, server_default=func.now())
 
 
@@ -34,6 +35,7 @@ class PolicyMappingCreate(BaseModel):
     policy_uuid:      str
     ipaddrgroup_name: Optional[str] = None
     ipaddrgroup_ref:  Optional[str] = None
+    vip_address:      Optional[str] = None
 
 
 class PolicyMappingResponse(PolicyMappingCreate):
