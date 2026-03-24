@@ -5,28 +5,32 @@ class JITService:
     @staticmethod
     def generate_enforcements(req: JITRequest) -> list[EnforcementPayload]:
         is_login = req.action.upper() == "LOGIN"
-        ip_expression = (
-            [{"resource_type": "IPAddressExpression", "ip_addresses": [req.source_ip]}]
-            if is_login
-            else [{"resource_type": "IPAddressExpression", "ip_addresses": []}]
-        )
+        if is_login:
+            ip_expression = [{"resource_type": "IPAddressExpression", "ip_addresses": [req.source_ip]}]
+        else:
+            # remove_ip signals the NSX client to surgically remove this specific IP
+            # rather than overwriting the entire ip_addresses list.
+            ip_expression = [{"resource_type": "IPAddressExpression", "ip_addresses": [], "remove_ip": req.source_ip}]
+
+        gfw_group = f"JIT_Edge_{req.target_app}_Authorized_IPs"
+        dfw_group = f"JIT_Workload_{req.target_app}_Authorized_IPs"
 
         nsx_gfw = EnforcementPayload(
-            system="NSX Gateway Firewall",
+            system="vDefend Gateway Firewall",
             method="PATCH",
-            url="https://nsx-manager.lab/policy/api/v1/infra/domains/default/groups/JIT_Edge_Authorized_IPs",
+            url=f"https://nsx-manager.lab/policy/api/v1/infra/domains/default/groups/{gfw_group}",
             payload={
-                "display_name": "JIT_Edge_Authorized_IPs",
+                "display_name": gfw_group,
                 "expression": ip_expression,
             },
         )
 
         nsx_dfw = EnforcementPayload(
-            system="NSX Distributed Firewall",
+            system="vDefend Distributed Firewall",
             method="PATCH",
-            url="https://nsx-manager.lab/policy/api/v1/infra/domains/default/groups/JIT_Workload_Authorized_IPs",
+            url=f"https://nsx-manager.lab/policy/api/v1/infra/domains/default/groups/{dfw_group}",
             payload={
-                "display_name": "JIT_Workload_Authorized_IPs",
+                "display_name": dfw_group,
                 "expression": ip_expression,
             },
         )

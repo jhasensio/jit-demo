@@ -1,19 +1,14 @@
-import re
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 
 class AuthRequest(BaseModel):
-    username: str
-    source_ip: str
+    username: str = "jsmith"
+    source_ip: str = "127.0.0.1"   # overridden server-side if default is submitted
     target_app: str
     action: Literal["LOGIN", "LOGOUT"]
-
-    @field_validator("source_ip")
-    @classmethod
-    def validate_ip(cls, v: str) -> str:
-        pattern = r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
-        if not re.match(pattern, v):
-            raise ValueError("source_ip must be a valid IPv4 address")
-        return v
+    destination_ip: str = "192.168.10.100"
+    device_name: str = "linux-db-prod-01"
+    port: str = "22"
+    access_protocol: str = "SSH"

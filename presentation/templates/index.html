@@ -17,21 +17,53 @@
     </div>
 
     <div class="sb-nav">
-      <button class="sb-item active" data-view="demo">
-        <span class="sb-icon">◈</span>
-        <span class="sb-label">Architecture<br>Demo</span>
-      </button>
-      <button class="sb-item" data-view="jit">
-        <span class="sb-icon">⚡</span>
-        <span class="sb-label">JIT<br>Middleware</span>
-      </button>
-      <button class="sb-item" data-view="connections">
-        <span class="sb-icon">⬡</span>
-        <span class="sb-label">Connections</span>
-      </button>
+
+      <!-- Simulation -->
+      <div class="sb-section">Simulation</div>
+      <div class="sb-group">
+        <button class="sb-item sb-item--child active" data-view="demo">
+          <span class="sb-icon">◈</span>
+          <span class="sb-label">Demo Architecture</span>
+        </button>
+      </div>
+
+      <!-- Live -->
+      <div class="sb-section">Live</div>
+      <div class="sb-group">
+
+        <button class="sb-item sb-item--child" data-view="settings">
+          <span class="sb-icon">&#9881;</span>
+          <span class="sb-label">Settings</span>
+        </button>
+
+        <button class="sb-item sb-item--child sb-item--parent" data-toggle="policy-sub">
+          <span class="sb-icon">&#9638;</span>
+          <span class="sb-label">Policy Configuration</span>
+        </button>
+        <div class="sb-sub" id="policy-sub">
+          <button class="sb-item--leaf" data-view="avi-policy">AVI</button>
+          <button class="sb-item--leaf disabled" data-view="nsx-policy">NSX</button>
+        </div>
+
+        <button class="sb-item sb-item--child" data-view="active-sessions">
+          <span class="sb-icon">&#9202;</span>
+          <span class="sb-label">Active Sessions</span>
+        </button>
+
+        <button class="sb-item sb-item--child" data-view="jit">
+          <span class="sb-icon">&#9889;</span>
+          <span class="sb-label">L7 APIM</span>
+        </button>
+
+      </div>
     </div>
 
     <div class="sb-footer">
+      <label class="theme-toggle" title="Toggle light/dark theme">
+        <input type="checkbox" id="theme-switch" onchange="toggleTheme()">
+        <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+        <span class="theme-toggle-label">Dark</span>
+      </label>
       <span id="sse-status" class="disconnected">○ Disconnected</span>
     </div>
   </nav>
@@ -42,110 +74,332 @@
     <!-- ── View: Architecture Demo ─────────────────────────────────────── -->
     <div id="view-demo" class="view active">
 
-      <section id="diagram-section">
-        <header>
-          <h1>VMware Zero Trust — JIT Access Workflow</h1>
-        </header>
-
-        <div id="diagram">
-
-          <!-- Row 1: main flow -->
-          <div class="diagram-row">
-
-            <div class="diagram-box" id="box-user">
-              External User
-              <span class="box-label">Actor</span>
-            </div>
-
-            <div class="arrow" id="arrow-user-idsp">
-              <div class="arrowline"></div>
-              <div class="arrowhead"></div>
-            </div>
-
-            <div class="diagram-box clickable" id="box-idsp"
-                 onclick="openIDSPModal()" title="Click to send a PAM authentication event">
-              IDSP Simulator
-              <span class="box-label">IDSP · Syslog</span>
-            </div>
-
-            <div class="arrow" id="arrow-idsp-aria">
-              <div class="arrowline"></div>
-              <div class="arrowhead"></div>
-            </div>
-
-            <div class="diagram-box" id="box-aria">
-              Aria SIEM
-              <span class="box-label">UDP :5140 · Parser</span>
-            </div>
-
-            <div class="arrow" id="arrow-aria-jit">
-              <div class="arrowline"></div>
-              <div class="arrowhead"></div>
-            </div>
-
-            <div class="diagram-box" id="box-jit">
-              JIT Middleware
-              <span class="box-label">Webhook · Enforcer</span>
-            </div>
-
-          </div><!-- /row1 -->
-
-          <!-- Down arrow from JIT to enforcement boxes -->
-          <div class="diagram-row" style="justify-content:flex-end; padding-right: 65px;">
-            <div style="display:flex; flex-direction:column; align-items:center; width:130px;">
-              <div style="width:2px; height:18px; background:var(--arrow-color);"></div>
-              <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--arrow-color);"></div>
-            </div>
-          </div>
-
-          <!-- Row 2: enforcement targets -->
-          <div class="diagram-row enforcement-row" style="justify-content:flex-end; gap:10px;">
-            <div style="flex:1 1 0;"></div>
-
-            <div class="diagram-box" id="box-gfw">
-              NSX GFW
-              <span class="box-label">Gateway Firewall</span>
-            </div>
-
-            <div class="diagram-box" id="box-dfw">
-              NSX DFW
-              <span class="box-label">Distributed Firewall</span>
-            </div>
-
-            <div class="diagram-box" id="box-avi">
-              AVI LB
-              <span class="box-label">Load Balancer</span>
-            </div>
-
-          </div><!-- /row2 -->
-
-        </div><!-- /diagram -->
-      </section>
-
-      <section id="console-section">
-        <div class="console-header">
-          <span class="console-title">Event Stream Console</span>
-          <div class="console-controls">
-            <label>
-              <input type="checkbox" id="autoscroll" checked />
-              Auto-scroll
-            </label>
-            <button class="btn-clear" onclick="clearConsole()">Clear</button>
-          </div>
+      <!-- Step indicator -->
+      <div id="demo-steps">
+        <div class="demo-step-item" data-step="0" onclick="resetDemo()" title="Return to overview">
+          <span class="demo-step-num demo-step-num-icon">&#9670;</span>
+          <span class="demo-step-label">Overview</span>
         </div>
-        <div id="console-output"></div>
-      </section>
+        <div class="demo-step-sep"></div>
+        <div class="demo-step-item" data-step="1">
+          <span class="demo-step-num">1</span>
+          <span class="demo-step-label">IDSP Auth</span>
+        </div>
+        <div class="demo-step-sep"></div>
+        <div class="demo-step-item" data-step="2">
+          <span class="demo-step-num">2</span>
+          <span class="demo-step-label">VCF Operations</span>
+        </div>
+        <div class="demo-step-sep"></div>
+        <div class="demo-step-item" data-step="3">
+          <span class="demo-step-num">3</span>
+          <span class="demo-step-label">JIT Enforcement</span>
+        </div>
+        <div class="demo-step-sep"></div>
+        <div class="demo-step-item" data-step="4">
+          <span class="demo-step-num">4</span>
+          <span class="demo-step-label">Revocation</span>
+        </div>
+      </div>
+
+      <!-- Main content -->
+      <div id="demo-body">
+
+        <!-- ── Landing page (step 0) ───────────────────────────────────── -->
+        <div id="demo-landing">
+
+          <div class="ld-header">
+            <div class="ld-header-eyebrow">Architecture Overview</div>
+            <h1 class="ld-header-title">VMware Zero Trust — JIT Access Workflow</h1>
+            <p class="ld-header-sub">
+              Just-in-Time source-IP enforcement across Identity, SIEM, and Policy engines.
+              Each authentication event drives real-time NSX and AVI policy updates.
+            </p>
+          </div>
+
+          <!-- Technical diagram -->
+          <div class="ld-diagram">
+
+            <!-- Row 1: pipeline -->
+            <div class="ld-pipeline">
+
+              <div class="ld-node ld-node-user">
+                <div class="ld-node-icon">&#9673;</div>
+                <div class="ld-node-name">External User</div>
+                <div class="ld-node-sub">Access Requestor</div>
+              </div>
+
+              <div class="ld-conn">
+                <div class="ld-conn-arrow"></div>
+                <span class="ld-conn-label">Login request</span>
+              </div>
+
+              <div class="ld-node ld-node-idsp">
+                <div class="ld-node-name">IDSP</div>
+                <div class="ld-node-sub">Identity Service Provider</div>
+                <div class="ld-node-tags">
+                  <span class="ld-tag">PAM 4.2</span>
+                  <span class="ld-tag">Syslog · 13 fields</span>
+                </div>
+              </div>
+
+              <div class="ld-conn">
+                <div class="ld-conn-arrow"></div>
+                <span class="ld-conn-label">UDP :5140</span>
+                <span class="ld-conn-sublabel">Session Management Syslog</span>
+              </div>
+
+              <div class="ld-node ld-node-aria">
+                <div class="ld-node-name">VCF Operations</div>
+                <div class="ld-node-sub">VCF Operations for Logs</div>
+                <div class="ld-node-tags">
+                  <span class="ld-tag">UDP Listener</span>
+                  <span class="ld-tag">Regex Parser</span>
+                </div>
+              </div>
+
+              <div class="ld-conn">
+                <div class="ld-conn-arrow"></div>
+                <span class="ld-conn-label">HTTP POST</span>
+                <span class="ld-conn-sublabel">/jit/webhook</span>
+              </div>
+
+              <div class="ld-node ld-node-jit">
+                <div class="ld-node-name">L7 APIM</div>
+                <div class="ld-node-sub">JIT Policy Server</div>
+                <div class="ld-node-tags">
+                  <span class="ld-tag">Payload Generator</span>
+                  <span class="ld-tag">Per-App Groups</span>
+                </div>
+              </div>
+
+            </div><!-- /ld-pipeline -->
+
+            <!-- Divider -->
+            <div class="ld-divider">
+              <span>JIT generates enforcement payloads for all three security engines</span>
+            </div>
+
+            <!-- Row 2: enforcement targets -->
+            <div class="ld-enforcement">
+
+              <div class="ld-enf-col">
+                <div class="ld-enf-drop"></div>
+                <div class="ld-node ld-node-gfw">
+                  <div class="ld-node-name">vDefend Gateway Firewall</div>
+                  <div class="ld-node-sub">Perimeter enforcement</div>
+                  <div class="ld-node-tags">
+                    <span class="ld-tag ld-tag-patch">PATCH</span>
+                    <span class="ld-tag">JIT_Edge_{app}_Authorized_IPs</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ld-enf-col">
+                <div class="ld-enf-drop"></div>
+                <div class="ld-node ld-node-dfw">
+                  <div class="ld-node-name">vDefend Distributed Firewall</div>
+                  <div class="ld-node-sub">East-west enforcement</div>
+                  <div class="ld-node-tags">
+                    <span class="ld-tag ld-tag-patch">PATCH</span>
+                    <span class="ld-tag">JIT_Workload_{app}_Authorized_IPs</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ld-enf-col">
+                <div class="ld-enf-drop"></div>
+                <div class="ld-node ld-node-avi">
+                  <div class="ld-node-name">AVI Load Balancer</div>
+                  <div class="ld-node-sub">NSX Advanced LB</div>
+                  <div class="ld-node-tags">
+                    <span class="ld-tag ld-tag-put">PUT</span>
+                    <span class="ld-tag">JIT_{app}_Allowed ipaddrgroup</span>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /ld-enforcement -->
+
+          </div><!-- /ld-diagram -->
+
+          <!-- Legend -->
+          <div class="ld-legend">
+            <div class="ld-legend-item">
+              <span class="ld-legend-badge ld-badge-login">LOGIN</span>
+              <span class="ld-legend-text">Source IP <strong>merged</strong> into all three policy groups — existing sessions preserved</span>
+            </div>
+            <div class="ld-legend-item">
+              <span class="ld-legend-badge ld-badge-logout">LOGOUT</span>
+              <span class="ld-legend-text">Source IP <strong>surgically removed</strong> — other active users unaffected</span>
+            </div>
+          </div>
+
+          <!-- CTA -->
+          <div class="ld-cta">
+            <button class="btn btn-primary ld-start-btn" onclick="startDemo()">
+              &#9654; Start Interactive Walkthrough
+            </button>
+            <p class="ld-cta-hint">Step through IDSP Authentication &rarr; VCF Operations Parsing &rarr; L7 APIM Enforcement</p>
+          </div>
+
+        </div><!-- /demo-landing -->
+
+        <!-- Left panel: step-specific content -->
+        <div id="demo-left">
+
+          <!-- Step 1: login form -->
+          <div id="step1-panel" class="step-panel">
+            <div class="demo-login-header">
+              <div class="demo-login-logo">IDSP</div>
+              <div>
+                <div class="demo-login-title">Identity Service Provider</div>
+                <div class="demo-login-sub">Privileged Access Management</div>
+              </div>
+            </div>
+            <form id="demo-auth-form" onsubmit="demoAuthenticate(event)">
+              <div class="form-group">
+                <label for="da-username">Username</label>
+                <input type="text" id="da-username" value="jsmith" autocomplete="off" required />
+              </div>
+              <div class="form-group">
+                <label for="da-source-ip">Source IP Address</label>
+                <input type="text" id="da-source-ip" value=""
+                       pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
+                       title="Valid IPv4 address" autocomplete="off" required />
+              </div>
+              <div class="form-group">
+                <label for="da-target-app">Target Application</label>
+                <select id="da-target-app" required>
+                  <option value="HR_APP_01">HR_APP_01</option>
+                  <option value="FIN_APP_01">FIN_APP_01</option>
+                  <option value="ENG_APP_01">ENG_APP_01</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="da-action">Action</label>
+                <select id="da-action">
+                  <option value="LOGIN">LOGIN — Grant access</option>
+                  <option value="LOGOUT">LOGOUT — Revoke access</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="da-port">Port</label>
+                <input type="text" id="da-port" value="22" autocomplete="off" />
+              </div>
+              <div class="form-group">
+                <label for="da-protocol">Access Protocol</label>
+                <input type="text" id="da-protocol" value="SSH" autocomplete="off" />
+              </div>
+              <button type="submit" class="btn btn-primary demo-submit-btn" id="btn-demo-auth">
+                Authenticate
+              </button>
+              <p id="demo-auth-status"></p>
+            </form>
+          </div><!-- /step1-panel -->
+
+          <!-- Step 2: parsed field map -->
+          <div id="step2-panel" class="step-panel" style="display:none">
+            <div id="demo-field-map"></div>
+          </div>
+
+          <!-- Step 3: enforcement cards -->
+          <div id="step3-panel" class="step-panel" style="display:none">
+            <div id="demo-enf-cards"></div>
+          </div>
+
+          <!-- Step 4: revocation trigger + revocation cards -->
+          <div id="step4-panel" class="step-panel" style="display:none">
+
+            <div class="demo-reveal-label" style="margin-bottom:8px;">Select Revocation Trigger</div>
+            <div id="revoke-trigger-cards" class="revoke-trigger-grid">
+              <div class="revoke-trigger-card active" data-rtype="logout" onclick="selectRevokeType('logout')">
+                <span class="rtc-icon">&#8682;</span>
+                <span class="rtc-title">User Logout</span>
+                <span class="rtc-sub">User explicitly signs out of the application</span>
+              </div>
+              <div class="revoke-trigger-card" data-rtype="policy" onclick="selectRevokeType('policy')">
+                <span class="rtc-icon">&#9203;</span>
+                <span class="rtc-title">Policy Revocation</span>
+                <span class="rtc-sub">TTL expired or IDSP session detected dead by poller</span>
+              </div>
+            </div>
+
+            <button id="btn-demo-revoke" class="btn btn-primary demo-submit-btn"
+                    style="background:var(--text-error); border-color:var(--text-error);"
+                    onclick="_demoRevoke()">
+              &#9888; Trigger Revocation
+            </button>
+            <div id="demo-revoke-status" style="font-size:0.72rem; margin-top:7px; min-height:16px; text-align:center;"></div>
+
+            <div id="demo-revoke-cards"></div>
+
+          </div>
+
+        </div><!-- /demo-left -->
+
+        <!-- Right panel: explanation + event console -->
+        <div id="demo-right">
+
+          <!-- Mini architecture diagram (steps 1-4) -->
+          <div id="mini-diagram" style="display:none">
+            <div class="md-flow">
+              <div class="md-node" id="md-user"><span class="md-label">User</span></div>
+              <div class="md-arrow"></div>
+              <div class="md-node md-node-idsp" id="md-idsp"><span class="md-label">IDSP</span></div>
+              <div class="md-arrow"></div>
+              <div class="md-node md-node-aria" id="md-aria"><span class="md-label">VCF Ops</span></div>
+              <div class="md-arrow"></div>
+              <div class="md-node md-node-jit" id="md-jit"><span class="md-label">L7 APIM</span></div>
+              <div class="md-arrow md-arrow-split"></div>
+              <div class="md-targets">
+                <div class="md-node md-node-gfw" id="md-gfw"><span class="md-label">GFW</span></div>
+                <div class="md-node md-node-dfw" id="md-dfw"><span class="md-label">DFW</span></div>
+                <div class="md-node md-node-avi" id="md-avi"><span class="md-label">AVI</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div id="demo-explain-box">
+            <div id="demo-explain-text"></div>
+            <div id="demo-data-reveal"></div>
+          </div>
+
+          <div id="demo-console-panel">
+            <div class="console-header">
+              <span class="console-title" id="demo-console-title">Event Stream</span>
+              <div class="console-controls">
+                <label>
+                  <input type="checkbox" id="autoscroll" checked />
+                  Auto-scroll
+                </label>
+                <button class="btn-clear" onclick="clearConsole()">Clear</button>
+              </div>
+            </div>
+            <div id="console-output"></div>
+          </div>
+
+        </div><!-- /demo-right -->
+
+      </div><!-- /demo-body -->
+
+      <!-- Navigation bar -->
+      <div id="demo-nav">
+        <button class="btn btn-secondary" id="btn-demo-back" onclick="goBackStep()">&#9668; Back</button>
+        <span id="demo-nav-hint" class="demo-nav-hint"></span>
+        <button class="btn btn-primary" id="btn-demo-next" onclick="advanceStep()" disabled>Next &#9658;</button>
+      </div>
 
     </div><!-- /view-demo -->
 
 
-    <!-- ── View: JIT Middleware ─────────────────────────────────────────── -->
+    <!-- ── View: L7 APIM ────────────────────────────────────────────────── -->
     <div id="view-jit" class="view">
 
       <div class="jit-page-header">
         <div>
-          <h2>JIT Middleware <span class="dim">— Direct Access Request</span></h2>
-          <p>Send enforcement payloads directly to the JIT Middleware API, bypassing the IDSP&nbsp;→&nbsp;Aria pipeline.</p>
+          <h2>L7 APIM <span class="dim">— Direct Access Request</span></h2>
+          <p>Send enforcement payloads directly to the L7 APIM, bypassing the IDSP&nbsp;→&nbsp;VCF Operations pipeline.</p>
         </div>
         <span class="endpoint-pill">POST /jit/direct</span>
       </div>
@@ -168,7 +422,7 @@
 
                 <div class="form-group">
                   <label for="jf-source-ip">Source IP Address</label>
-                  <input type="text" id="jf-source-ip" value="10.0.1.50"
+                  <input type="text" id="jf-source-ip" value=""
                          pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
                          title="Valid IPv4 address"
                          autocomplete="off" required />
@@ -176,16 +430,31 @@
 
                 <div class="form-group">
                   <label for="jf-target-app">Target Application</label>
-                  <input type="text" id="jf-target-app" value="APP_PROD_01"
-                         autocomplete="off" required />
+                  <select id="jf-target-app" required>
+                    <option value="HR_APP_01">HR_APP_01</option>
+                    <option value="FIN_APP_01">FIN_APP_01</option>
+                    <option value="ENG_APP_01">ENG_APP_01</option>
+                  </select>
                 </div>
 
                 <div class="form-group">
                   <label for="jf-action">Action</label>
                   <select id="jf-action">
                     <option value="LOGIN">LOGIN — Grant access (add IP)</option>
-                    <option value="LOGOUT">LOGOUT — Revoke access (clear IP)</option>
+                    <option value="LOGOUT">LOGOUT — Revoke access (remove IP)</option>
                   </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="jf-port">Port</label>
+                  <input type="text" id="jf-port" value="22"
+                         autocomplete="off" />
+                </div>
+
+                <div class="form-group">
+                  <label for="jf-protocol">Access Protocol</label>
+                  <input type="text" id="jf-protocol" value="SSH"
+                         autocomplete="off" />
                 </div>
 
                 <button type="submit" class="btn btn-primary jit-submit-btn"
@@ -222,7 +491,7 @@
 
                 <div class="payload-card" id="card-gfw">
                   <div class="card-hd">
-                    <span class="card-sys">NSX Gateway Firewall</span>
+                    <span class="card-sys">vDefend Gateway Firewall</span>
                     <span class="method-badge">PATCH</span>
                   </div>
                   <div class="card-url" id="url-gfw"></div>
@@ -233,7 +502,7 @@
 
                 <div class="payload-card" id="card-dfw">
                   <div class="card-hd">
-                    <span class="card-sys">NSX Distributed Firewall</span>
+                    <span class="card-sys">vDefend Distributed Firewall</span>
                     <span class="method-badge">PATCH</span>
                   </div>
                   <div class="card-url" id="url-dfw"></div>
@@ -303,167 +572,296 @@
     </div><!-- /view-jit -->
 
 
-    <!-- ── View: Connections ─────────────────────────────────────────────── -->
-    <div id="view-connections" class="view">
+    <!-- ── View: Connectors ──────────────────────────────────────────────── -->
+    <!-- ── View: Settings ────────────────────────────────────────────────── -->
+    <div id="view-settings" class="view">
 
       <div class="conn-page-header">
         <div>
-          <h2>Connections <span class="dim">— Infrastructure Credentials</span></h2>
-          <p>Configure credentials for NSX Manager and AVI Controller to enable live policy enforcement.</p>
+          <h2>Settings</h2>
+          <p>Configure infrastructure connectors, session lifecycle policy, and mock IDSP API.</p>
         </div>
       </div>
 
-      <div class="connections-body">
+      <!-- ── Settings tabs ── -->
+      <div class="settings-tabs">
+        <button class="stab active" data-stab="connectors" onclick="switchSettingsTab('connectors')">Connectors</button>
+        <button class="stab" data-stab="lifecycle" onclick="switchSettingsTab('lifecycle')">Lifecycle</button>
+        <button class="stab" data-stab="idsp" onclick="switchSettingsTab('idsp')">IDSP Session API</button>
+      </div>
 
-        <!-- NSX Manager panel -->
-        <div class="panel conn-panel">
+      <!-- ── Tab: Connectors ── -->
+      <div class="stab-panel active" id="stab-connectors">
+        <div class="connections-body">
+
+          <div class="panel conn-panel">
+            <div class="panel-hd">
+              NSX Manager
+              <span class="conn-badge conn-badge-unconfigured" id="badge-nsx">unconfigured</span>
+            </div>
+            <div class="panel-bd">
+              <form id="nsx-form" onsubmit="saveNSXCreds(event)">
+                <div class="form-group">
+                  <label for="nsx-host">Host / IP</label>
+                  <input type="text" id="nsx-host" placeholder="https://nsx-manager.example.com" autocomplete="off" required />
+                </div>
+                <div class="form-group">
+                  <label for="nsx-user">Username</label>
+                  <input type="text" id="nsx-user" placeholder="admin" autocomplete="off" required />
+                </div>
+                <div class="form-group">
+                  <label for="nsx-pass">Password</label>
+                  <input type="password" id="nsx-pass" placeholder="••••••••" autocomplete="new-password" required />
+                </div>
+                <div class="form-group form-group-inline">
+                  <label><input type="checkbox" id="nsx-verify-ssl" /> Verify SSL Certificate</label>
+                </div>
+                <button type="submit" class="btn btn-primary conn-submit-btn" id="btn-nsx-save">Save &amp; Test</button>
+                <p id="nsx-test-status" class="conn-test-status"></p>
+              </form>
+            </div>
+          </div>
+
+          <div class="panel conn-panel">
+            <div class="panel-hd">
+              AVI Controller
+              <span class="conn-badge conn-badge-unconfigured" id="badge-avi">unconfigured</span>
+            </div>
+            <div class="panel-bd">
+              <form id="avi-form" onsubmit="saveAVICreds(event)">
+                <div class="form-group">
+                  <label for="avi-host">Host / IP</label>
+                  <input type="text" id="avi-host" placeholder="https://avi-controller.example.com" autocomplete="off" required />
+                </div>
+                <div class="form-group">
+                  <label for="avi-user">Username</label>
+                  <input type="text" id="avi-user" placeholder="admin" autocomplete="off" required />
+                </div>
+                <div class="form-group">
+                  <label for="avi-pass">Password</label>
+                  <input type="password" id="avi-pass" placeholder="••••••••" autocomplete="new-password" required />
+                </div>
+                <div class="form-group">
+                  <label for="avi-tenant">Tenant</label>
+                  <input type="text" id="avi-tenant" placeholder="admin" value="admin" autocomplete="off" />
+                </div>
+                <div class="form-group form-group-inline">
+                  <label><input type="checkbox" id="avi-verify-ssl" /> Verify SSL Certificate</label>
+                </div>
+                <button type="submit" class="btn btn-primary conn-submit-btn" id="btn-avi-save">Save &amp; Test</button>
+                <p id="avi-test-status" class="conn-test-status"></p>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </div><!-- /stab-connectors -->
+
+      <!-- ── Tab: Lifecycle ── -->
+      <div class="stab-panel" id="stab-lifecycle">
+        <div class="simple-view-body">
+          <div class="panel">
+            <div class="panel-hd">Revocation Settings</div>
+            <div class="panel-bd">
+              <form id="settings-form" onsubmit="saveSettings(event)">
+                <div class="form-group">
+                  <label for="cfg-ttl">Session TTL (seconds)</label>
+                  <input id="cfg-ttl" type="number" min="10" max="86400" value="300" />
+                </div>
+                <div class="form-group">
+                  <label for="cfg-poll">Poll Interval (seconds)</label>
+                  <input id="cfg-poll" type="number" min="5" max="3600" value="30" />
+                </div>
+                <div class="form-group">
+                  <label for="cfg-mode">Revocation Mode</label>
+                  <select id="cfg-mode">
+                    <option value="both">Both (TTL + IDSP Polling)</option>
+                    <option value="ttl_only">TTL Only</option>
+                    <option value="polling_only">IDSP Polling Only</option>
+                  </select>
+                </div>
+                <div class="form-group-inline">
+                  <label>
+                    <input id="cfg-auto-enforce" type="checkbox" />
+                    Auto-Enforce on Revocation
+                    <span class="settings-hint">(calls live NSX/AVI if connections are ok)</span>
+                  </label>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%; margin-top:8px;">Save Settings</button>
+                <div id="settings-status" style="font-size:0.7rem; margin-top:6px; min-height:14px; text-align:center;"></div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div><!-- /stab-lifecycle -->
+
+      <!-- ── Tab: IDSP Session API ── -->
+      <div class="stab-panel" id="stab-idsp">
+        <div class="simple-view-body">
+          <div class="panel">
+            <div class="panel-hd">Mock IDSP Endpoint</div>
+            <div class="panel-bd" style="font-size:0.68rem; color:var(--text-muted); line-height:1.7;">
+              <p>The mock IDSP endpoint simulates <strong style="color:var(--text-primary);">Symantec PAM 4.x</strong> session state.</p>
+              <p style="margin-top:6px;">Clicking <strong style="color:var(--text-primary);">Kill</strong> on a session (in Active Sessions) marks it inactive in the mock API. The poller detects this on its next cycle and triggers revocation.</p>
+              <p style="margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <code style="font-family:var(--font-mono); font-size:0.62rem; color:var(--accent);">GET /idsp/sessions/{sessionId}</code>
+                <button id="btn-copy-idsp-curl" class="btn-copy-curl" onclick="copyIDSPCurl()" title="Copy cURL for first active session">Copy cURL</button>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div><!-- /stab-idsp -->
+
+    </div><!-- /view-settings -->
+
+    <!-- ── View: Active Sessions ──────────────────────────────────────────── -->
+    <div id="view-active-sessions" class="view">
+      <div class="settings-page-header">
+        <div>
+          <h2>Active Sessions <span class="dim">— Live JIT Access</span></h2>
+          <p>Monitor and revoke active JIT sessions. Kill marks a session inactive in the mock IDSP API.</p>
+        </div>
+      </div>
+      <div class="active-sessions-body">
+        <div class="panel panel-flex">
           <div class="panel-hd">
-            NSX Manager
-            <span class="conn-badge conn-badge-unconfigured" id="badge-nsx">unconfigured</span>
+            Sessions
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span id="sessions-count" class="badge-live">0 active</span>
+              <button class="btn-clear" onclick="refreshSessions()">Refresh</button>
+            </div>
+          </div>
+          <div class="panel-scroll">
+            <table id="sessions-table">
+              <thead>
+                <tr>
+                  <th>User</th><th>App</th><th>Source IP</th>
+                  <th>Status</th><th>Elapsed</th><th>Source</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="sessions-tbody">
+                <tr class="sessions-empty">
+                  <td colspan="7">No sessions yet — submit a LOGIN event to register one.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div><!-- /view-active-sessions -->
+
+    <!-- ── View: AVI Policy Configuration ────────────────────────────────── -->
+    <div id="view-avi-policy" class="view">
+      <div class="avi-policy-header">
+        <div>
+          <h2>AVI Policy Configuration <span class="dim">— Network Security Policies</span></h2>
+          <p>Create and attach Network Security Policies to AVI Virtual Services for JIT access control.</p>
+        </div>
+      </div>
+
+      <div class="avi-policy-stacked">
+
+        <!-- ── AVI Current Network Policies ── -->
+        <div class="panel">
+          <div class="panel-hd">
+            AVI Current Network Policies
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-small btn-primary" onclick="openCreateNspModal()">+ New Policy</button>
+              <button class="btn-clear" onclick="refreshAviPolicies()">&#8635;</button>
+            </div>
           </div>
           <div class="panel-bd">
-            <form id="nsx-form" onsubmit="saveNSXCreds(event)">
-
-              <div class="form-group">
-                <label for="nsx-host">Host / IP</label>
-                <input type="text" id="nsx-host"
-                       placeholder="https://nsx-manager.example.com"
-                       autocomplete="off" required />
-              </div>
-
-              <div class="form-group">
-                <label for="nsx-user">Username</label>
-                <input type="text" id="nsx-user" placeholder="admin"
-                       autocomplete="off" required />
-              </div>
-
-              <div class="form-group">
-                <label for="nsx-pass">Password</label>
-                <input type="password" id="nsx-pass" placeholder="••••••••"
-                       autocomplete="new-password" required />
-              </div>
-
-              <div class="form-group form-group-inline">
-                <label>
-                  <input type="checkbox" id="nsx-verify-ssl" />
-                  Verify SSL Certificate
-                </label>
-              </div>
-
-              <button type="submit" class="btn btn-primary conn-submit-btn"
-                      id="btn-nsx-save">
-                Save &amp; Test
-              </button>
-              <p id="nsx-test-status" class="conn-test-status"></p>
-
-            </form>
+            <div class="nsp-search-bar">
+              <input type="search" id="nsp-search" placeholder="Search policies…" oninput="onNspSearch(this.value)" autocomplete="off" />
+            </div>
+            <div id="avi-nsp-table-wrap">
+              <span class="placeholder">Connect to AVI to load policies…</span>
+            </div>
           </div>
-        </div><!-- /NSX panel -->
+        </div>
 
-        <!-- AVI Controller panel -->
-        <div class="panel conn-panel">
-          <div class="panel-hd">
-            AVI Controller
-            <span class="conn-badge conn-badge-unconfigured" id="badge-avi">unconfigured</span>
-          </div>
+        <!-- ── Attach Policy to VS ── -->
+        <div class="panel">
+          <div class="panel-hd">Attach Policy to Virtual Service</div>
           <div class="panel-bd">
-            <form id="avi-form" onsubmit="saveAVICreds(event)">
-
-              <div class="form-group">
-                <label for="avi-host">Host / IP</label>
-                <input type="text" id="avi-host"
-                       placeholder="https://avi-controller.example.com"
-                       autocomplete="off" required />
+            <form id="avi-attach-form" onsubmit="attachPolicyToVS(event)">
+              <div class="avi-attach-row">
+                <div class="form-group" style="margin:0;">
+                  <label for="attach-target-app">Target Application</label>
+                  <select id="attach-target-app">
+                    <option value="HR_APP_01">HR_APP_01</option>
+                    <option value="FIN_APP_01">FIN_APP_01</option>
+                    <option value="ENG_APP_01">ENG_APP_01</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label for="attach-policy">Network Security Policy</label>
+                  <select id="attach-policy" required>
+                    <option value="">— Connect to AVI to load —</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin:0;">
+                  <label for="attach-vs">Virtual Service</label>
+                  <select id="attach-vs" required>
+                    <option value="">— Connect to AVI to load —</option>
+                  </select>
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                  <button type="submit" class="btn btn-primary" style="white-space:nowrap;">Attach &amp; Save</button>
+                </div>
               </div>
-
-              <div class="form-group">
-                <label for="avi-user">Username</label>
-                <input type="text" id="avi-user" placeholder="admin"
-                       autocomplete="off" required />
-              </div>
-
-              <div class="form-group">
-                <label for="avi-pass">Password</label>
-                <input type="password" id="avi-pass" placeholder="••••••••"
-                       autocomplete="new-password" required />
-              </div>
-
-              <div class="form-group">
-                <label for="avi-tenant">Tenant</label>
-                <input type="text" id="avi-tenant" placeholder="admin"
-                       value="admin" autocomplete="off" />
-              </div>
-
-              <div class="form-group form-group-inline">
-                <label>
-                  <input type="checkbox" id="avi-verify-ssl" />
-                  Verify SSL Certificate
-                </label>
-              </div>
-
-              <button type="submit" class="btn btn-primary conn-submit-btn"
-                      id="btn-avi-save">
-                Save &amp; Test
-              </button>
-              <p id="avi-test-status" class="conn-test-status"></p>
-
+              <div id="nsp-attach-status" style="font-size:0.7rem; margin-top:6px; min-height:14px;"></div>
             </form>
           </div>
-        </div><!-- /AVI panel -->
+        </div>
 
-      </div><!-- /connections-body -->
+        <!-- ── Policy Mappings ── -->
+        <div class="panel panel-flex">
+          <div class="panel-hd">
+            Policy Mappings
+            <button class="btn-clear" onclick="refreshMappings()">Refresh</button>
+          </div>
+          <div class="panel-scroll">
+            <table id="mappings-table">
+              <thead>
+                <tr>
+                  <th>Target App</th><th>Virtual Service</th>
+                  <th>Policy</th><th>Created</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="mappings-tbody">
+                <tr class="mappings-empty"><td colspan="5">No mappings saved yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-    </div><!-- /view-connections -->
+      </div><!-- /avi-policy-stacked -->
+    </div><!-- /view-avi-policy -->
+
+    <!-- ── View: NSX Policy (placeholder) ────────────────────────────────── -->
+    <div id="view-nsx-policy" class="view">
+      <div class="settings-page-header">
+        <div>
+          <h2>NSX Policy Configuration <span class="dim">— Coming Soon</span></h2>
+          <p>NSX Policy Configuration will be available in a future release.</p>
+        </div>
+      </div>
+    </div><!-- /view-nsx-policy -->
 
   </div><!-- /content -->
 
 </div><!-- /app -->
 
-<!-- ── IDSP Modal ─────────────────────────────────────────────────────────── -->
-<div id="modal-overlay">
-  <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <h2 id="modal-title">IDSP — Authentication Event</h2>
-    <p class="subtitle">Simulates an IDSP syslog → Aria SIEM → JIT enforcement pipeline</p>
-
-    <form id="idsp-form" onsubmit="submitIDSP(event)">
-
-      <div class="form-group">
-        <label for="f-username">Username</label>
-        <input type="text" id="f-username" placeholder="john.doe" value="jsmith"
-               required autocomplete="off" />
-      </div>
-
-      <div class="form-group">
-        <label for="f-source-ip">Source IP Address</label>
-        <input type="text" id="f-source-ip" placeholder="192.168.1.100" value="10.0.1.50"
-               required autocomplete="off"
-               pattern="^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$"
-               title="Enter a valid IPv4 address" />
-      </div>
-
-      <div class="form-group">
-        <label for="f-target-app">Target Application / Resource</label>
-        <input type="text" id="f-target-app" placeholder="APP_PROD_01" value="APP_PROD_01"
-               required autocomplete="off" />
-      </div>
-
-      <div class="form-group">
-        <label for="f-action">Action</label>
-        <select id="f-action">
-          <option value="LOGIN">LOGIN — Grant access (add IP)</option>
-          <option value="LOGOUT">LOGOUT — Revoke access (clear IP)</option>
-        </select>
-      </div>
-
-      <div class="form-actions">
-        <button type="button" class="btn btn-secondary" onclick="closeIDSPModal()">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="btn-submit">Send PAM Event</button>
-      </div>
-
-      <p id="submit-status" style="margin-top:10px; font-size:0.8rem; text-align:right;"></p>
-    </form>
+<!-- ── Custom modal overlay ──────────────────────────────────────────────── -->
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal">
+    <div id="modal-content"></div>
   </div>
 </div>
+
+<!-- ── Toast notifications ──────────────────────────────────────────────── -->
+<div id="toast-container"></div>
 
 <script src="/static/js/app.js"></script>
 </body>

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/aria", tags=["Aria SIEM"])
+router = APIRouter(prefix="/aria", tags=["VCF Operations"])
 
 
 @router.get("/status")

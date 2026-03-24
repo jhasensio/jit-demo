@@ -172,6 +172,330 @@ class AVIClient:
         finally:
             self._clear_sessions()
 
+    # ── Network Security Policy methods ───────────────────────────────────────
+
+    async def list_networksecuritypolicies(self) -> dict:
+        """GET api/networksecuritypolicy — returns {"success", "results", "error"}."""
+        if not _HAS_SDK:
+            return {"success": False, "results": [], "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_list_nsp)
+
+    async def create_networksecuritypolicy(self, name: str, ipaddrgroup_ref: str) -> dict:
+        """POST a new NetworkSecurityPolicy with allow-whitelist + deny-cleanup rules."""
+        if not _HAS_SDK:
+            return {"success": False, "body": {}, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_create_nsp, name, ipaddrgroup_ref)
+
+    async def list_virtualservices(self) -> dict:
+        """GET api/virtualservice — returns {"success", "results", "error"}."""
+        if not _HAS_SDK:
+            return {"success": False, "results": [], "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_list_vs)
+
+    async def attach_policy_to_vs(self, vs_uuid: str, policy_ref: str) -> dict:
+        """GET VS by uuid, then PUT with network_security_policy_ref set."""
+        if not _HAS_SDK:
+            return {"success": False, "body": {}, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_attach_policy, vs_uuid, policy_ref)
+
+    async def list_ipaddrgroups(self) -> dict:
+        """GET api/ipaddrgroup — returns {"success", "results", "error"}."""
+        if not _HAS_SDK:
+            return {"success": False, "results": [], "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_list_ipgroups)
+
+    # ── sync helpers for new methods ──────────────────────────────────────────
+
+    def _sync_list_nsp(self) -> dict:
+        try:
+            session = self._session()
+            r = session.get("networksecuritypolicy")
+            if r.status_code == 200:
+                return {"success": True, "results": r.json().get("results", []), "error": None}
+            return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "results": [], "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_create_nsp(self, name: str, ipaddrgroup_ref: str) -> dict:
+        payload = {
+            "name": name,
+            "rules": [
+                {
+                    "name": "authorized_users_ip_whitelist",
+                    "action": "NETWORK_SECURITY_POLICY_ACTION_TYPE_ALLOW",
+                    "enable": True,
+                    "index": 0,
+                    "log": True,
+                    "match": {
+                        "client_ip": {
+                            "group_refs": [ipaddrgroup_ref],
+                            "match_criteria": "IS_IN",
+                        }
+                    },
+                },
+                {
+                    "name": "cleanup-rule",
+                    "action": "NETWORK_SECURITY_POLICY_ACTION_TYPE_DENY",
+                    "enable": True,
+                    "index": 1,
+                    "log": True,
+                    "match": {
+                        "client_ip": {
+                            "match_criteria": "IS_IN",
+                            "prefixes": [
+                                {"ip_addr": {"addr": "0.0.0.0", "type": "V4"}, "mask": 0}
+                            ],
+                        }
+                    },
+                },
+            ],
+        }
+        try:
+            session = self._session()
+            r = session.post("networksecuritypolicy", data=payload)
+            success = r.status_code in (200, 201)
+            body: dict = {}
+            try:
+                body = r.json()
+            except Exception:
+                pass
+            return {
+                "success": success,
+                "status_code": r.status_code,
+                "body": body,
+                "error": None if success else r.text[:300],
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_list_vs(self) -> dict:
+        try:
+            session = self._session()
+            r = session.get("virtualservice")
+            if r.status_code == 200:
+                return {"success": True, "results": r.json().get("results", []), "error": None}
+            return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "results": [], "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_attach_policy(self, vs_uuid: str, policy_ref: str) -> dict:
+        try:
+            session = self._session()
+            # GET current VS state
+            get_r = session.get(f"virtualservice/{vs_uuid}")
+            if get_r.status_code != 200:
+                return {
+                    "success": False,
+                    "body": {},
+                    "error": f"GET virtualservice/{vs_uuid} → HTTP {get_r.status_code}",
+                }
+            vs_data = get_r.json()
+            vs_data["network_security_policy_ref"] = policy_ref
+            put_r = session.put(f"virtualservice/{vs_uuid}", data=vs_data)
+            success = put_r.status_code in (200, 201)
+            body: dict = {}
+            try:
+                body = put_r.json()
+            except Exception:
+                pass
+            return {
+                "success": success,
+                "status_code": put_r.status_code,
+                "body": body,
+                "error": None if success else put_r.text[:300],
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_list_ipgroups(self) -> dict:
+        try:
+            session = self._session()
+            r = session.get("ipaddrgroup")
+            if r.status_code == 200:
+                return {"success": True, "results": r.json().get("results", []), "error": None}
+            return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "results": [], "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    # ── new helpers: get/update/delete NSP + create ipgroup ──────────────────
+
+    def _sync_get_nsp(self, uuid: str) -> dict:
+        try:
+            session = self._session()
+            r = session.get(f"networksecuritypolicy/{uuid}")
+            if r.status_code == 200:
+                return {"success": True, "result": r.json(), "error": None}
+            return {"success": False, "result": {}, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "result": {}, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_update_nsp(self, uuid: str, payload: dict) -> dict:
+        try:
+            session = self._session()
+            r = session.put(f"networksecuritypolicy/{uuid}", data=payload)
+            success = r.status_code in (200, 201)
+            body: dict = {}
+            try:
+                body = r.json()
+            except Exception:
+                pass
+            return {
+                "success": success,
+                "status_code": r.status_code,
+                "body": body,
+                "error": None if success else r.text[:300],
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_delete_nsp(self, uuid: str) -> dict:
+        try:
+            session = self._session()
+            r = session.delete(f"networksecuritypolicy/{uuid}")
+            success = r.status_code in (200, 204)
+            return {"success": success, "error": None if success else f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_create_ipgroup(self, name: str, addrs: list) -> dict:
+        payload: dict = {"name": name}
+        filtered = [{"addr": ip.strip(), "type": "V4"} for ip in addrs if ip.strip()]
+        if filtered:
+            payload["addrs"] = filtered
+        try:
+            session = self._session()
+            r = session.post("ipaddrgroup", data=payload)
+            success = r.status_code in (200, 201)
+            body: dict = {}
+            try:
+                body = r.json()
+            except Exception:
+                pass
+            return {
+                "success": success,
+                "status_code": r.status_code,
+                "body": body,
+                "error": None if success else r.text[:300],
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    async def get_networksecuritypolicy(self, uuid: str) -> dict:
+        """GET api/networksecuritypolicy/{uuid} — returns full NSP object with rules."""
+        if not _HAS_SDK:
+            return {"success": False, "result": {}, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_get_nsp, uuid)
+
+    async def update_networksecuritypolicy(self, uuid: str, payload: dict) -> dict:
+        """PUT api/networksecuritypolicy/{uuid} — full read-modify-write update."""
+        if not _HAS_SDK:
+            return {"success": False, "body": {}, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_update_nsp, uuid, payload)
+
+    async def delete_networksecuritypolicy(self, uuid: str) -> dict:
+        """DELETE api/networksecuritypolicy/{uuid}."""
+        if not _HAS_SDK:
+            return {"success": False, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_delete_nsp, uuid)
+
+    async def create_ipaddrgroup(self, name: str, addrs: list) -> dict:
+        """POST api/ipaddrgroup — create a new IP address group."""
+        if not _HAS_SDK:
+            return {"success": False, "body": {}, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_create_ipgroup, name, addrs)
+
+    async def detach_policy_from_vs(self, vs_uuid: str) -> dict:
+        """GET VS → remove network_security_policy_ref → PUT back."""
+        if not _HAS_SDK:
+            return {"success": False, "body": {}, "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_detach_policy, vs_uuid)
+
+    async def get_nsp_referred_by(self, uuid: str) -> dict:
+        """GET NSP with referred_by=virtualservice to discover attached VS objects."""
+        if not _HAS_SDK:
+            return {"success": False, "result": {}, "referred_by_vs": [], "error": _INSTALL_MSG}
+        return await asyncio.to_thread(self._sync_get_nsp_referred_by, uuid)
+
+    def _sync_detach_policy(self, vs_uuid: str) -> dict:
+        try:
+            session = self._session()
+            get_r = session.get(f"virtualservice/{vs_uuid}")
+            if get_r.status_code != 200:
+                return {"success": False, "body": {}, "error": f"GET virtualservice/{vs_uuid} → HTTP {get_r.status_code}"}
+            vs_data = get_r.json()
+            vs_data.pop("network_security_policy_ref", None)
+            put_r = session.put(f"virtualservice/{vs_uuid}", data=vs_data)
+            success = put_r.status_code in (200, 201)
+            body: dict = {}
+            try:
+                body = put_r.json()
+            except Exception:
+                pass
+            return {"success": success, "status_code": put_r.status_code, "body": body,
+                    "error": None if success else put_r.text[:300]}
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
+    def _sync_get_nsp_referred_by(self, uuid: str) -> dict:
+        """Get NSP object and find VSes that reference it.
+
+        AVI's `referred_by` query param is not reliably embedded in the response
+        body for individual object GETs.  Instead we query virtualservice with
+        a filter on network_security_policy_ref so AVI does the lookup for us.
+        """
+        try:
+            session = self._session()
+
+            # 1. Fetch the NSP object itself
+            r_nsp = session.get(f"networksecuritypolicy/{uuid}")
+            if r_nsp.status_code != 200:
+                return {"success": False, "result": {}, "referred_by_vs": [],
+                        "error": f"HTTP {r_nsp.status_code}: {r_nsp.text[:200]}"}
+            nsp_data = r_nsp.json()
+
+            # 2. Find VSes that have network_security_policy_ref pointing at this NSP.
+            #    AVI accepts ?refers_to=networksecuritypolicy:<uuid> to filter VS list.
+            r_vs = session.get(
+                "virtualservice",
+                params={"refers_to": f"networksecuritypolicy:{uuid}",
+                        "fields": "name,uuid,url,network_security_policy_ref"},
+            )
+            vs_refs = []
+            if r_vs.status_code == 200:
+                vs_data = r_vs.json()
+                for vs in vs_data.get("results", []):
+                    vs_refs.append({
+                        "url":  vs.get("url", ""),
+                        "uuid": vs.get("uuid", ""),
+                        "name": vs.get("name", vs.get("uuid", "")),
+                    })
+
+            return {"success": True, "result": nsp_data, "referred_by_vs": vs_refs, "error": None}
+        except Exception as exc:
+            return {"success": False, "result": {}, "referred_by_vs": [], "error": str(exc)}
+        finally:
+            self._clear_sessions()
+
     def _clear_sessions(self) -> None:
         """Flush avisdk's global session cache to prevent stale-token reuse."""
         try:

@@ -17,11 +17,11 @@ _PAM_PATTERN = re.compile(
     r"Nat/Proxy IP:\s*(?P<source_ip>[^,]*),\s*"
     r"User:\s*(?P<username>[^,]+),\s*"
     r"Transaction:\s*(?P<transaction>[^,]+),\s*"
-    r"Address:\s*[^,]+,\s*"
-    r"Device Name:\s*[^,]+,\s*"
+    r"Address:\s*(?P<destination_ip>[^,]*),\s*"
+    r"Device Name:\s*(?P<device_name>[^,]*),\s*"
     r"User Group:\s*[^,]+,\s*"
-    r"Port:\s*[^,]+,\s*"
-    r"Access/Protocol:\s*[^,]+,\s*"
+    r"Port:\s*(?P<port>[^,]*),\s*"
+    r"Access/Protocol:\s*(?P<access_protocol>[^,]*),\s*"
     r"Service/App:\s*(?P<target_app>[^,]+),\s*"
     r"Details:\s*(?P<details>.+)$",
     re.DOTALL,
@@ -55,6 +55,10 @@ class AriaService:
             source_ip=source_ip,
             target_app=m.group("target_app").strip(),
             action=action,
+            destination_ip=m.group("destination_ip").strip(),
+            device_name=m.group("device_name").strip(),
+            port=m.group("port").strip(),
+            access_protocol=m.group("access_protocol").strip(),
         )
 
     @staticmethod
@@ -66,4 +70,8 @@ class AriaService:
             target_app=parsed.target_app,
             action=parsed.action,
             original_timestamp=parsed.timestamp,
+            destination_ip=parsed.destination_ip,
+            device_name=parsed.device_name,
+            port=parsed.port,
+            access_protocol=parsed.access_protocol,
         )

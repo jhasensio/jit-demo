@@ -1,23 +1,19 @@
-import re
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 
 class DirectJITRequest(BaseModel):
-    """Simplified payload for direct external calls to the JIT Middleware API."""
+    """Simplified payload for direct external calls to the L7 APIM API."""
 
-    username: str
-    source_ip: str
+    username: str = "jsmith"
+    source_ip: str = "127.0.0.1"   # overridden server-side from request.client.host
     target_app: str
     action: Literal["LOGIN", "LOGOUT"]
-
-    @field_validator("source_ip")
-    @classmethod
-    def validate_ip(cls, v: str) -> str:
-        if not re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", v):
-            raise ValueError("source_ip must be a valid IPv4 address")
-        return v
+    destination_ip: str = "192.168.10.100"
+    device_name: str = "linux-db-prod-01"
+    port: str = "22"
+    access_protocol: str = "SSH"
 
 
 class JITRequest(BaseModel):
@@ -28,6 +24,10 @@ class JITRequest(BaseModel):
     target_app: str
     action: str
     original_timestamp: str
+    destination_ip: str = ""
+    device_name: str = ""
+    port: str = ""
+    access_protocol: str = ""
 
 
 class EnforcementPayload(BaseModel):

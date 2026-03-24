@@ -73,7 +73,7 @@ async def start_aria_udp(host: str = "0.0.0.0", port: int = 5140) -> None:
         {
             "level": "INFO",
             "domain": "SYSTEM",
-            "message": f"Aria SIEM UDP listener starting on {host}:{port}",
+            "message": f"VCF Operations UDP listener starting on {host}:{port}",
             "payload": None,
         }
     )
@@ -86,7 +86,7 @@ async def start_aria_udp(host: str = "0.0.0.0", port: int = 5140) -> None:
         {
             "level": "SUCCESS",
             "domain": "SYSTEM",
-            "message": f"Aria SIEM UDP listener bound to {host}:{port}",
+            "message": f"VCF Operations UDP listener bound to {host}:{port}",
             "payload": None,
         }
     )
