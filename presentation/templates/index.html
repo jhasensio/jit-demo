@@ -807,12 +807,48 @@
 
       <div class="avi-policy-stacked">
 
-        <!-- ── AVI Current Network Policies ── -->
+        <!-- ── Deck 1: Application Onboarding ── -->
+        <div class="panel">
+          <div class="panel-hd">Application Onboarding</div>
+          <div class="panel-bd">
+            <form id="avi-onboard-form" onsubmit="submitAviOnboarding(event)">
+              <div class="form-group">
+                <label for="avi-onboard-target-app">Target Application</label>
+                <select id="avi-onboard-target-app" required onchange="onAviOnboardAppChange()">
+                  <option value="">— select target application —</option>
+                </select>
+              </div>
+              <div class="form-group" id="avi-onboard-derived-wrap" style="display:none">
+                <label>Derived Names</label>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:var(--text-xs)">
+                  <span>Policy: <code id="avi-onboard-policy-name-hint" style="font-size:var(--text-xs)"></code></span>
+                  <span>Bypass group: <code id="avi-onboard-bypass-hint" style="font-size:var(--text-xs)"></code></span>
+                  <span>JIT group: <code id="avi-onboard-jit-hint" style="font-size:var(--text-xs)"></code></span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="avi-onboard-vs">Virtual Service</label>
+                <select id="avi-onboard-vs" required>
+                  <option value="">— Connect to AVI to load —</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="avi-onboard-bypass-ips">Bypass IPs <span style="opacity:.6;font-weight:400">(optional — comma-separated admin/ops hosts)</span></label>
+                <input id="avi-onboard-bypass-ips" type="text" placeholder="e.g. 10.0.0.5, 192.168.1.10" autocomplete="off" />
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+                <button type="submit" class="btn btn-primary">Create Network Policy</button>
+                <span id="avi-onboard-status" class="status-hint"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- ── Deck 2: Network Security Policies ── -->
         <div class="panel">
           <div class="panel-hd">
-            Network Security Policy
+            Network Security Policies
             <div class="panel-hd-actions">
-              <button class="btn btn-small btn-primary" onclick="openCreateNspModal()">+ New Policy</button>
               <button class="btn-clear" onclick="refreshAviPolicies()" aria-label="Refresh AVI policies">&#8635;</button>
             </div>
           </div>
@@ -826,40 +862,7 @@
           </div>
         </div>
 
-        <!-- ── Attach Policy to VS ── -->
-        <div class="panel">
-          <div class="panel-hd">Attach Policy to Virtual Service</div>
-          <div class="panel-bd">
-            <form id="avi-attach-form" onsubmit="attachPolicyToVS(event)">
-              <div class="avi-attach-row">
-                <div class="form-group form-group--flush">
-                  <label for="attach-target-app">Target Application</label>
-                  <select id="attach-target-app" required>
-                    <option value="">— select target application —</option>
-                  </select>
-                </div>
-                <div class="form-group form-group--flush">
-                  <label for="attach-policy">Network Security Policy</label>
-                  <select id="attach-policy" required>
-                    <option value="">— Connect to AVI to load —</option>
-                  </select>
-                </div>
-                <div class="form-group form-group--flush">
-                  <label for="attach-vs">Virtual Service</label>
-                  <select id="attach-vs" required>
-                    <option value="">— Connect to AVI to load —</option>
-                  </select>
-                </div>
-                <div class="form-submit-col">
-                  <button type="submit" class="btn btn-primary btn-nowrap">Attach &amp; Save</button>
-                </div>
-              </div>
-              <div id="nsp-attach-status" class="status-hint"></div>
-            </form>
-          </div>
-        </div>
-
-        <!-- ── Policy Mappings ── -->
+        <!-- ── Deck 3: Policy Mappings ── -->
         <div class="panel panel-flex">
           <div class="panel-hd">
             Policy Mappings

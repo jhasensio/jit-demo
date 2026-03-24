@@ -2149,139 +2149,172 @@ async function deleteNsp(uuid) {
 }
 
 async function refreshAviVirtualServices() {
-  const policyDropdown = document.getElementById("attach-policy");
-  const vsDropdown     = document.getElementById("attach-vs");
-  const promises = [];
-
-  if (policyDropdown) {
-    promises.push(
-      fetch("/avi-policy/networksecuritypolicies").then(r => r.ok ? r.json() : null).then(data => {
-        if (!data) { policyDropdown.innerHTML = '<option value="">— AVI not connected —</option>'; return; }
-        policyDropdown.innerHTML = '<option value="">— select policy —</option>' +
-          (data.results || []).map(p =>
-            `<option value="${_esc(p.url)}">${_esc(p.name)}</option>`
-          ).join("");
-      }).catch(() => { policyDropdown.innerHTML = '<option value="">— error —</option>'; })
-    );
-  }
-
-  if (vsDropdown) {
-    promises.push(
-      fetch("/avi-policy/virtualservices").then(r => r.ok ? r.json() : null).then(data => {
-        if (!data) { vsDropdown.innerHTML = '<option value="">— AVI not connected —</option>'; _cachedVsList = []; return; }
-        _cachedVsList = data.results || [];
-        vsDropdown.innerHTML = '<option value="">— select VS —</option>' +
-          _cachedVsList.map(vs => {
-            const vip = (vs.vip && vs.vip[0]?.ip_address?.addr) || "";
-            return `<option value="${_esc(vs.uuid)}" data-name="${_esc(vs.name)}" data-vip="${_esc(vip)}">${_esc(vs.name)}${vip ? " (" + _esc(vip) + ")" : ""}</option>`;
-          }).join("");
-      }).catch(() => { vsDropdown.innerHTML = '<option value="">— error —</option>'; _cachedVsList = []; })
-    );
-  }
-
-  await Promise.all(promises);
+  const vsDropdown = document.getElementById("avi-onboard-vs");
+  if (!vsDropdown) { _cachedVsList = []; return; }
+  try {
+    const data = await fetch("/avi-policy/virtualservices").then(r => r.ok ? r.json() : null);
+    if (!data) { vsDropdown.innerHTML = '<option value="">— AVI not connected —</option>'; _cachedVsList = []; return; }
+    _cachedVsList = data.results || [];
+    const prev = vsDropdown.value;
+    vsDropdown.innerHTML = '<option value="">— select Virtual Service —</option>' +
+      _cachedVsList.map(vs => {
+        const vip = (vs.vip && vs.vip[0]?.ip_address?.addr) || "";
+        return `<option value="${_esc(vs.uuid)}" data-name="${_esc(vs.name)}" data-vip="${_esc(vip)}">${_esc(vs.name)}${vip ? " (" + _esc(vip) + ")" : ""}</option>`;
+      }).join("");
+    if (prev) vsDropdown.value = prev;
+  } catch (_) { vsDropdown.innerHTML = '<option value="">— error —</option>'; _cachedVsList = []; }
 }
 
-async function attachPolicyToVS(e) {
-  e.preventDefault();
-  const policyRef = document.getElementById("attach-policy")?.value.trim();
-  const vsUuid    = document.getElementById("attach-vs")?.value.trim();
-  const targetApp = document.getElementById("attach-target-app")?.value.trim();
+function onAviOnboardAppChange() {
+  const appName = document.getElementById("avi-onboard-target-app")?.value || "";
+  const wrap    = document.getElementById("avi-onboard-derived-wrap");
+  if (!appName) { if (wrap) wrap.style.display = "none"; return; }
 
-  const vsEl  = document.getElementById("attach-vs");
+  const slug       = appName.replace(/_/g, "-");
+  const prefix     = appName.split("_")[0];
+  const policyName = `${slug}-netpolicy`;
+  const bypassGrp  = `${prefix}-bypass-ipaddrgroup`;
+  const jitGrp     = `${prefix}-JIT-active-users-ipaddrgroup`;
+
+  const pHint = document.getElementById("avi-onboard-policy-name-hint");
+  const bHint = document.getElementById("avi-onboard-bypass-hint");
+  const jHint = document.getElementById("avi-onboard-jit-hint");
+  if (pHint) pHint.textContent = policyName;
+  if (bHint) bHint.textContent = bypassGrp;
+  if (jHint) jHint.textContent = jitGrp;
+  if (wrap)  wrap.style.display = "";
+}
+
+async function submitAviOnboarding(e) {
+  e.preventDefault();
+  const appName   = document.getElementById("avi-onboard-target-app")?.value.trim();
+  const vsUuid    = document.getElementById("avi-onboard-vs")?.value.trim();
+  const bypassRaw = document.getElementById("avi-onboard-bypass-ips")?.value || "";
+  const statusEl  = document.getElementById("avi-onboard-status");
+  const setStatus = msg => { if (statusEl) statusEl.textContent = msg; };
+
+  if (!appName || !vsUuid) { showToast("Select a target application and Virtual Service.", "error"); return; }
+
+  const slug       = appName.replace(/_/g, "-");
+  const prefix     = appName.split("_")[0];
+  const policyName = `${slug}-netpolicy`;
+  const bypassGrp  = `${prefix}-bypass-ipaddrgroup`;
+  const jitGrp     = `${prefix}-JIT-active-users-ipaddrgroup`;
+
+  const vsEl   = document.getElementById("avi-onboard-vs");
   const vsName = vsEl?.options[vsEl.selectedIndex]?.dataset.name || vsUuid;
   const vsVip  = vsEl?.options[vsEl.selectedIndex]?.dataset.vip  || "";
 
-  const policyEl = document.getElementById("attach-policy");
-  const policyName = policyEl?.options[policyEl.selectedIndex]?.text || policyRef;
-
-  if (!policyRef || !vsUuid || !targetApp) return;
-
-  // Resolve the IP address group associated with this policy from cached data.
-  // The policy's first rule that references a group tells us which group to update
-  // during JIT enforcement (LOGIN adds the user's IP; LOGOUT removes it).
-  const policyUuid = policyRef.split("/").pop() || policyRef;
-  const cachedPol  = _nspAllResults.find(p => {
-    const u = p.uuid || (p.url || "").split("/").filter(Boolean).pop() || "";
-    return u === policyUuid;
-  });
-  let ipgroupName = "";
-  let ipgroupRef  = "";
-  if (cachedPol) {
-    // Find the JIT active-users rule (index 1) — not the bypass rule (index 0)
-    const jitRule  = (cachedPol.rules || []).find(r => (r.name || "").includes("JIT-active-users"))
-                     || (cachedPol.rules || [])[1];
-    const groupRef = (jitRule?.match?.client_ip?.group_refs || [])[0];
-    if (groupRef) {
-      ipgroupRef  = groupRef;
-      const cg    = _cachedIpGroups.find(g => g.url === groupRef);
-      ipgroupName = cg?.name || groupRef.split("/").pop() || "";
-    }
-  }
-
-  // Check for existing DB mappings for this VS and AVI policy conflict
-  const mappingsRes = await fetch("/avi-policy/mappings");
-  const allMappings = mappingsRes.ok ? await mappingsRes.json() : [];
-  const existingDbMappings = allMappings.filter(m => m.vs_uuid === vsUuid);
-
-  const cachedVs    = _cachedVsList.find(v => v.uuid === vsUuid);
-  const aviPolUuid  = (cachedVs?.network_security_policy_ref || "").split("/").filter(Boolean).pop() || "";
-  const aviConflict = aviPolUuid && aviPolUuid !== policyUuid;
-
-  if (existingDbMappings.length > 0 || aviConflict) {
-    let msg = `Virtual Service <strong>${_esc(vsName)}</strong> is already mapped:`;
-    if (existingDbMappings.length > 0) {
-      const em = existingDbMappings[0];
-      msg += `<br><br>Target App: <strong>${_esc(em.target_app)}</strong> &rarr; Policy: <strong>${_esc(em.policy_name)}</strong>`;
-    }
-    if (aviConflict) {
-      const aviPol  = _nspAllResults.find(p => (p.uuid || (p.url || "").split("/").filter(Boolean).pop()) === aviPolUuid);
-      const aviName = aviPol?.name || aviPolUuid;
-      msg += `<br><br>AVI has policy <strong>${_esc(aviName)}</strong> currently attached.`;
-    }
-    msg += `<br><br>The existing mapping will be <strong>deleted</strong> and replaced with <strong>${_esc(policyName)}</strong> for <strong>${_esc(targetApp)}</strong>. Continue?`;
-    const confirmed = await showConfirm(msg);
-    if (!confirmed) return;
-  }
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.disabled = true;
 
   try {
-    // Delete any existing DB mappings for this VS before creating the new one
-    await Promise.all(existingDbMappings.map(m =>
-      fetch(`/avi-policy/mappings/${m.id}`, { method: "DELETE" })
-    ));
+    // Step 1: create bypass IP group
+    setStatus("Creating bypass IP group…");
+    const bypassAddrs = bypassRaw.split(",").map(s => s.trim()).filter(Boolean);
+    const g1Res = await fetch("/avi-policy/ipaddrgroups", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: bypassGrp, addrs: bypassAddrs }),
+    });
+    if (!g1Res.ok) {
+      const err = await g1Res.json().catch(() => ({}));
+      showToast("Bypass group error: " + (err.detail || g1Res.status), "error");
+      setStatus(""); return;
+    }
+    const g1Ref = (await g1Res.json()).body?.url || "";
 
+    // Step 2: create JIT active-users IP group (empty)
+    setStatus("Creating JIT active-users IP group…");
+    const g2Res = await fetch("/avi-policy/ipaddrgroups", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: jitGrp, addrs: [] }),
+    });
+    if (!g2Res.ok) {
+      const err = await g2Res.json().catch(() => ({}));
+      showToast("JIT group error: " + (err.detail || g2Res.status), "error");
+      setStatus(""); return;
+    }
+    const g2Ref = (await g2Res.json()).body?.url || "";
+
+    // Step 3: create Network Security Policy with 3 rules
+    setStatus("Creating network security policy…");
+    const rules = [
+      {
+        name:   `${prefix}-bypass-rule`,
+        action: "NETWORK_SECURITY_POLICY_ACTION_TYPE_ALLOW",
+        enable: true, index: 0, log: true,
+        match:  { client_ip: { group_refs: [g1Ref], match_criteria: "IS_IN" } },
+        rl_param: {},
+      },
+      {
+        name:   `${prefix}-JIT-active-users-allow-list-rule`,
+        action: "NETWORK_SECURITY_POLICY_ACTION_TYPE_ALLOW",
+        enable: true, index: 1, log: true,
+        match:  { client_ip: { group_refs: [g2Ref], match_criteria: "IS_IN" } },
+        rl_param: {},
+      },
+      {
+        name:   "cleanup-deny-all-rule",
+        action: "NETWORK_SECURITY_POLICY_ACTION_TYPE_DENY",
+        enable: true, index: 2, log: true,
+        match:  { client_ip: { match_criteria: "IS_IN",
+          prefixes: [{ ip_addr: { addr: "0.0.0.0", type: "V4" }, mask: 0 }] } },
+        rl_param: {},
+      },
+    ];
+    const nspRes = await fetch("/avi-policy/create", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: policyName, rules }),
+    });
+    if (!nspRes.ok) {
+      const err = await nspRes.json().catch(() => ({}));
+      showToast("Policy creation error: " + (err.detail || nspRes.status), "error");
+      setStatus(""); return;
+    }
+    const nspData  = await nspRes.json();
+    const policyRef  = nspData.body?.url  || "";
+    const policyUuid = policyRef.split("/").filter(Boolean).pop() || "";
+
+    // Step 4: attach NSP to Virtual Service
+    setStatus("Attaching policy to Virtual Service…");
     const attachRes = await fetch("/avi-policy/attach", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ vs_uuid: vsUuid, policy_ref: policyRef }),
     });
     if (!attachRes.ok) {
-      const err = await attachRes.json();
+      const err = await attachRes.json().catch(() => ({}));
       showToast("Attach error: " + (err.detail || attachRes.status), "error");
-      return;
+      setStatus(""); return;
     }
 
+    // Step 5: save mapping to DB
     await fetch("/avi-policy/mappings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        target_app:       targetApp,
+        target_app:       appName,
         vs_name:          vsName,
         vs_uuid:          vsUuid,
         policy_name:      policyName,
         policy_uuid:      policyUuid,
-        ipaddrgroup_name: ipgroupName,
-        ipaddrgroup_ref:  ipgroupRef,
+        ipaddrgroup_name: jitGrp,
+        ipaddrgroup_ref:  g2Ref,
         vip_address:      vsVip,
       }),
     });
 
-    showToast("Policy attached to Virtual Service", "success");
-    await refreshMappings();
+    setStatus("");
+    showToast(`${appName} onboarded — policy '${policyName}' created and attached to ${vsName}.`, "success");
+    document.getElementById("avi-onboard-form")?.reset();
+    document.getElementById("avi-onboard-derived-wrap").style.display = "none";
+    await Promise.all([refreshAviPolicies(), refreshAviIpAddrGroups(), refreshAviVirtualServices(), refreshMappings()]);
   } catch (ex) {
     showToast("Request failed: " + ex.message, "error");
+    setStatus("");
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
   }
 }
+
 
 function _buildConfigStatus(r) {
   // Determine if VS's current policy matches the mapping
@@ -3069,7 +3102,7 @@ async function refreshTargetApps() {
 function populateTargetAppDropdowns() {
   const opts = '<option value="">— select target application —</option>' +
     _targetApps.map(a => `<option value="${_esc(a.name)}">${_esc(a.name)}</option>`).join("");
-  ["jf-target-app", "attach-target-app", "nsx-onboard-target-app"].forEach(id => {
+  ["jf-target-app", "avi-onboard-target-app", "nsx-onboard-target-app"].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const prev = sel.value;
