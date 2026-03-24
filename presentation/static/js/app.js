@@ -2798,9 +2798,9 @@ function _gwpPhase2() {
   const policyName = `${prefix}-GW-netpolicy`;
 
   const rules = [
-    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: [] },
-    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: [] },
-    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: [] },
+    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], services: ["ANY"], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: ["ANY"] },
+    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], services: ["ANY"], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: ["ANY"] },
+    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], services: ["ANY"], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: ["ANY"] },
   ];
 
   const container = document.getElementById("gwp-create-rules-container");
@@ -2821,7 +2821,8 @@ function _collectRuleEdits(card, baseRule) {
     direction: card.querySelector(".rule-direction")?.value || "IN_OUT",
     logged:    card.querySelector(".rule-logged")?.checked ?? true,
     disabled:  card.querySelector(".rule-disabled")?.checked ?? false,
-    scope:     (() => { const v = card.querySelector(".rule-scope")?.value; return v ? [v] : []; })(),
+    scope:     (() => { const v = card.querySelector(".rule-scope")?.value; return v ? [v] : ["ANY"]; })(),
+    services:  ["ANY"],
   };
 }
 
@@ -2985,15 +2986,21 @@ function renderTargetAppsTable() {
     return;
   }
   const rows = _targetApps.map(a => `<tr>
-    <td>${_esc(a.name)}</td>
-    <td><code class="nsx-ip-cell">${_esc(a.ip_address)}</code></td>
+    <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(a.name)}</td>
+    <td style="white-space:nowrap"><code class="nsx-ip-cell">${_esc(a.ip_address)}</code></td>
     <td style="opacity:.75">${_esc(a.description || "—")}</td>
-    <td>
+    <td style="white-space:nowrap;text-align:right">
       <button class="btn btn-small" onclick="openEditTargetAppModal(${a.id})">Edit</button>
       <button class="btn btn-small btn-danger" onclick="deleteTargetApp(${a.id})">Delete</button>
     </td>
   </tr>`).join("");
-  wrap.innerHTML = `<table class="nsp-table">
+  wrap.innerHTML = `<table class="nsp-table" style="table-layout:fixed;width:100%">
+    <colgroup>
+      <col style="width:22%">
+      <col style="width:18%">
+      <col style="width:46%">
+      <col style="width:14%">
+    </colgroup>
     <thead><tr><th>Name</th><th>IP Address</th><th>Description</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
