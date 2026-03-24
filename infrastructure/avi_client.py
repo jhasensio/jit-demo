@@ -152,9 +152,14 @@ class AVIClient:
                     to_add       = [a for a in new_addrs if a.get("addr") not in existing_ips]
                     merged       = existing_addrs + to_add
 
-                clean["addrs"] = merged
-                resp           = session.put(f"ipaddrgroup/{uuid}", data=clean)
-                provisioned    = False
+                if remove_addr and not merged:
+                    # LOGOUT emptied the group — PUT with no addrs field so AVI
+                    # keeps the object but clears all members.
+                    clean.pop("addrs", None)
+                else:
+                    clean["addrs"] = merged
+                resp        = session.put(f"ipaddrgroup/{uuid}", data=clean)
+                provisioned = False
             else:
                 # Group absent — POST to provision it
                 # LOGOUT on a non-existent group: create empty (nothing to remove)

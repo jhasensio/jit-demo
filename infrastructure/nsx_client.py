@@ -99,13 +99,21 @@ class NSXClient:
                     # LOGIN: add new IPs, deduplicate
                     merged_ips = list(dict.fromkeys(existing_ips + new_ips))
 
-                # Write merged list back into the expression
-                for expr in clean_expressions:
-                    if isinstance(expr, dict) and expr.get("resource_type") == "IPAddressExpression":
-                        expr["ip_addresses"] = merged_ips
-                        break
-
-                merged_payload["expression"] = clean_expressions
+                if merged_ips:
+                    # Write merged list back into the expression
+                    for expr in clean_expressions:
+                        if isinstance(expr, dict) and expr.get("resource_type") == "IPAddressExpression":
+                            expr["ip_addresses"] = merged_ips
+                            break
+                    merged_payload["expression"] = clean_expressions
+                else:
+                    # LOGOUT emptied the group — drop IPAddressExpression entirely.
+                    # NSX rejects ip_addresses:[] (minimum size 1); an empty expression
+                    # list is valid and leaves the group intact with no members.
+                    merged_payload["expression"] = [
+                        e for e in clean_expressions
+                        if not (isinstance(e, dict) and e.get("resource_type") == "IPAddressExpression")
+                    ]
                 # Preserve existing tags so a PATCH never strips them
                 if existing_tags:
                     merged_payload.setdefault("tags", existing_tags)

@@ -3457,10 +3457,10 @@ function renderTargetAppsTable() {
       ? `<span class="ob-badge ob-badge--ok" title="vDefend JIT group exists in NSX">&#10003; Onboarded</span>`
       : `<span class="ob-badge ob-badge--no" title="JIT security group not found in NSX">&#8212; Not yet</span>`;
     const aviAction = !aviOk
-      ? `<button class="btn btn-small btn-secondary" onclick="switchView('view-avi-policy')">AVI Onboard</button>`
+      ? `<button class="btn btn-small btn-secondary" onclick="switchView('avi-policy')">AVI Onboard</button>`
       : "";
     const nsxAction = !nsxOk
-      ? `<button class="btn btn-small btn-secondary" onclick="switchView('view-nsx-policy')">vDefend Onboard</button>`
+      ? `<button class="btn btn-small btn-secondary" onclick="switchView('nsx-policy')">vDefend Onboard</button>`
       : "";
     return `<tr>
       <td style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_esc(a.name)}</td>
