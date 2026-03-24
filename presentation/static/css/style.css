@@ -723,25 +723,23 @@ header h1 {
 
 .jit-body {
   flex: 1;
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 310px 1fr;
   overflow: hidden;
   min-height: 0;
 }
 
 .jit-left {
-  width: 310px;
-  flex-shrink: 0;
   border-right: 1px solid var(--box-border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
   padding: 12px 14px;
   gap: 12px;
+  min-width: 0;
 }
 
 .jit-right {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -764,7 +762,7 @@ header h1 {
 .network-map-img {
   display: block;
   width: 100%;
-  height: 200px;
+  height: 148px;
   object-fit: cover;
   object-position: center center;
 }
@@ -809,6 +807,33 @@ header h1 {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+}
+
+/* Terminal-style panel body — always black, no inner padding (console div owns its own padding) */
+.panel-bd--terminal {
+  padding: 0;
+  background: #000000;
+}
+
+/* Terminal panel header — dark title bar to frame the terminal window */
+.panel:has(.panel-bd--terminal) .panel-hd {
+  background: #1a1a1a;
+  border-bottom-color: #333333;
+  color: #a0a0a0;
+}
+
+.panel:has(.panel-bd--terminal) .panel-hd .console-controls label {
+  color: #777777;
+}
+
+.panel:has(.panel-bd--terminal) .panel-hd .btn-clear {
+  border-color: #444444;
+  color: #777777;
+}
+
+.panel:has(.panel-bd--terminal) .panel-hd .btn-clear:hover {
+  border-color: #888888;
+  color: #cccccc;
 }
 
 .badge-live {
