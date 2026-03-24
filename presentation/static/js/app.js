@@ -1254,6 +1254,7 @@ async function refreshEnforceFooterStatus() {
     const enforceBtn = document.getElementById("btn-enforce");
     if (enforceBtn) {
       enforceBtn.disabled = !(status.nsx === "ok" || status.avi === "ok");
+      onEnforceTargetChange();  // sync toggle active states
     }
   } catch (_) {
     // Non-fatal; leave dots unchanged
@@ -1305,10 +1306,34 @@ function _updateConnDot(id, status) {
 
 // ─── Live enforcement ─────────────────────────────────────────────────────────
 
+function onEnforceTargetChange() {
+  const nsxChecked = document.getElementById("target-nsx")?.checked;
+  const aviChecked = document.getElementById("target-avi")?.checked;
+  document.getElementById("lbl-target-nsx")?.classList.toggle("active", !!nsxChecked);
+  document.getElementById("lbl-target-avi")?.classList.toggle("active", !!aviChecked);
+  // At least one must be checked; re-disable enforce button if neither is
+  const enforceBtn = document.getElementById("btn-enforce");
+  if (enforceBtn && !enforceBtn.disabled) {
+    enforceBtn.disabled = !nsxChecked && !aviChecked;
+  }
+}
+
+// Init toggle visual state on page load
+document.addEventListener("DOMContentLoaded", () => {
+  onEnforceTargetChange();
+});
+
 async function runLiveEnforce() {
+  const nsxChecked = document.getElementById("target-nsx")?.checked ?? true;
+  const aviChecked = document.getElementById("target-avi")?.checked ?? true;
+  const targets = [];
+  if (nsxChecked) targets.push("nsx");
+  if (aviChecked) targets.push("avi");
+
   // Prefer the last request received via SSE (external curl or form submit)
   // over the current form values, which may be stale or unrelated.
-  const body       = _lastJITRequest || _getJITFormBody();
+  const baseBody   = _lastJITRequest || _getJITFormBody();
+  const body       = { ...baseBody, targets };
   const enforceBtn = document.getElementById("btn-enforce");
   const resultsEl  = document.getElementById("enforce-results");
 

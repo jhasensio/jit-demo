@@ -25,6 +25,7 @@ async def execute_live_enforcement(
     port: str = "",
     access_protocol: str = "",
     source: str = "auto-revoke",
+    targets: list[str] | None = None,   # ["nsx"], ["avi"], or None = both
 ) -> list[dict]:
     """
     Generate enforcement payloads and submit them to live NSX/AVI infrastructure
@@ -68,8 +69,17 @@ async def execute_live_enforcement(
         avi_host=avi_creds.host if avi_creds else None,
     )
 
+    # Filter enforcements by requested targets (None = all)
+    active_targets = {t.lower() for t in targets} if targets else {"nsx", "avi"}
+    filtered = []
+    for enforcement in enforcements:
+        is_nsx = "vDefend" in enforcement.system or "NSX" in enforcement.system
+        if (is_nsx and "nsx" in active_targets) or (not is_nsx and "avi" in active_targets):
+            filtered.append(enforcement)
+    enforcements = filtered
+
     results = []
-    labels = ["[1/2] vDefend Security Group", "[2/2] AVI LB"]
+    labels = [f"[{i+1}/{len(enforcements)}] {e.system}" for i, e in enumerate(enforcements)]
 
     for label, enforcement in zip(labels, enforcements):
         await event_bus.publish(

@@ -763,8 +763,9 @@ header h1 {
   display: block;
   width: 100%;
   height: 148px;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center center;
+  background: var(--panel-bg);
 }
 
 /* ─── Panel ──────────────────────────────────────────────────────────────── */
@@ -1202,12 +1203,12 @@ header h1 {
 /* ─── Enforce footer (bottom bar of JIT view) ────────────────────────────── */
 #enforce-footer {
   flex-shrink: 0;
-  border-top: 1px solid var(--box-border);
+  border-top: 2px solid rgba(13, 122, 63, 0.35);
   background: var(--bg-secondary);
-  padding: 7px 16px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
 }
 
 .enforce-conns {
@@ -1251,12 +1252,67 @@ header h1 {
   white-space: nowrap;
 }
 
-.enforce-results {
+.enforce-centre {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.enforce-targets {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.enforce-targets-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
+.enforce-target-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--box-border);
+  background: transparent;
+  transition: all 0.15s;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.enforce-target-toggle input[type="checkbox"] {
+  display: none;
+}
+
+.enforce-target-toggle.active {
+  color: var(--text-success);
+  border-color: rgba(13, 122, 63, 0.45);
+  background: rgba(13, 122, 63, 0.08);
+}
+
+.ett-icon {
+  font-size: 0.65rem;
+}
+
+.enforce-results {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-height: 18px;
 }
 
 .enforce-result-badge {
@@ -1278,20 +1334,43 @@ header h1 {
 .enforce-actions { flex-shrink: 0; }
 
 .btn-enforce {
-  padding: 5px 14px;
-  font-size: 0.76rem;
-  background: rgba(13, 122, 63, 0.10);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 24px;
+  font-size: 0.85rem;
+  background: rgba(13, 122, 63, 0.12);
   color: var(--text-success);
-  border: 1px solid rgba(13, 122, 63, 0.35);
-  border-radius: 5px;
+  border: 2px solid rgba(13, 122, 63, 0.45);
+  border-radius: 7px;
   cursor: pointer;
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   transition: all 0.15s;
   white-space: nowrap;
+  min-width: 130px;
 }
-.btn-enforce:hover    { background: rgba(13, 122, 63, 0.18); }
-.btn-enforce:disabled { opacity: 0.35; cursor: default; }
+
+.btn-enforce-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.btn-enforce-text {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.btn-enforce:hover:not(:disabled) {
+  background: rgba(13, 122, 63, 0.22);
+  border-color: rgba(13, 122, 63, 0.70);
+  box-shadow: 0 0 10px rgba(13, 122, 63, 0.20);
+}
+
+.btn-enforce:disabled { opacity: 0.30; cursor: default; }
 
 /* ─── Landing page ───────────────────────────────────────────────────────── */
 #demo-landing {

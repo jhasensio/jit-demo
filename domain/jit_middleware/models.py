@@ -14,6 +14,8 @@ class DirectJITRequest(BaseModel):
     device_name: str = "linux-db-prod-01"
     port: str = "22"
     access_protocol: str = "SSH"
+    # Optional target filter: ["nsx"], ["avi"], or ["nsx","avi"] (default = both)
+    targets: list[str] | None = None
 
 
 class JITRequest(BaseModel):

@@ -198,6 +198,7 @@ async def jit_enforce(req: DirectJITRequest, request: Request) -> dict:
         port=req.port,
         access_protocol=req.access_protocol,
         source="live-enforce",
+        targets=req.targets,
     )
 
     # Register session using a JITRequest for the helper

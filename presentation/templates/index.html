@@ -564,6 +564,8 @@
 
       <!-- ── Enforce footer ──────────────────────────────────────────────── -->
       <div id="enforce-footer">
+
+        <!-- Left: connection indicators -->
         <div class="enforce-conns">
           <div class="conn-indicator">
             <span class="conn-dot conn-dot-unconfigured" id="dot-nsx"></span>
@@ -576,13 +578,32 @@
             <span class="conn-host" id="host-avi">—</span>
           </div>
         </div>
-        <div class="enforce-results" id="enforce-results"></div>
+
+        <!-- Centre: target selector + results -->
+        <div class="enforce-centre">
+          <div class="enforce-targets">
+            <span class="enforce-targets-label">Send to:</span>
+            <label class="enforce-target-toggle" id="lbl-target-nsx">
+              <input type="checkbox" id="target-nsx" checked onchange="onEnforceTargetChange()">
+              <span class="ett-icon">&#11041;</span> NSX / vDefend
+            </label>
+            <label class="enforce-target-toggle" id="lbl-target-avi">
+              <input type="checkbox" id="target-avi" checked onchange="onEnforceTargetChange()">
+              <span class="ett-icon">&#9670;</span> AVI Load Balancer
+            </label>
+          </div>
+          <div class="enforce-results" id="enforce-results"></div>
+        </div>
+
+        <!-- Right: primary CTA -->
         <div class="enforce-actions">
           <button class="btn btn-enforce" id="btn-enforce"
                   onclick="runLiveEnforce()" disabled>
-            &#9654; Enforce Live
+            <span class="btn-enforce-icon">&#9654;</span>
+            <span class="btn-enforce-text">Enforce Live</span>
           </button>
         </div>
+
       </div><!-- /enforce-footer -->
 
     </div><!-- /view-jit -->
