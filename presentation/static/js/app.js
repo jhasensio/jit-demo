@@ -1485,16 +1485,19 @@ function startSessionsAutoRefresh() {
 }
 
 // ─── vDefend (NSX) Policy view caches ─────────────────────────────────────────
-let _nsxGroups        = [];
-let _nsxGroupPage     = 0;
-let _nsxGroupPerPage  = 10;
-let _nsxGroupSearch   = "";
-let _nsxOnboardedApps = [];  // [{target_app, prefix, dest_group_path, dest_group_name, dest_ip, bypass_group_path, jit_group_path, created_at}]
-let _nsxGwPolicies    = [];
-let _nsxGwpPage       = 0;
-let _nsxGwpPerPage    = 10;
-let _nsxGwpSearch     = "";
+let _nsxGroups           = [];
+let _nsxGroupPage        = 0;
+let _nsxGroupPerPage     = 10;
+let _nsxGroupSearch      = "";
+let _nsxGroupZtOnly      = true;   // true = show zero-trust groups only
+let _nsxOnboardedApps    = [];  // [{target_app, prefix, dest_group_path, dest_group_name, dest_ip, bypass_group_path, jit_group_path, created_at}]
+let _nsxGwPolicies       = [];
+let _nsxGwpPage          = 0;
+let _nsxGwpPerPage       = 10;
+let _nsxGwpSearch        = "";
+let _nsxGwpLocalOnly     = true;   // true = LocalGatewayRules only
 let _nsxTier0s        = [];
+let _nsxTier1s        = [];
 
 // ─── AVI Policy view ──────────────────────────────────────────────────────────
 let _cachedIpGroups  = [];
@@ -2437,7 +2440,7 @@ async function deleteMapping(id) {
 // ─── vDefend (NSX) Policy view ────────────────────────────────────────────────
 
 async function loadNsxPolicyView() {
-  await Promise.all([refreshNsxGroups(), refreshNsxGwPolicies(), refreshNsxTier0s(), refreshTargetApps()]);
+  await Promise.all([refreshNsxGroups(), refreshNsxGwPolicies(), refreshNsxTier0s(), refreshNsxTier1s(), refreshTargetApps()]);
   loadNsxOnboardedApps();
   // Wire IP auto-fill for onboarding select
   const sel = document.getElementById("nsx-onboard-target-app");
@@ -2459,6 +2462,7 @@ async function refreshNsxGroups() {
     if (!r.ok) { _nsxGroups = []; renderNsxGroupsTable(); return; }
     const data = await r.json();
     _nsxGroups = (data.results || []).filter(g =>
+      (g.group_type || []).includes("IPAddress") ||
       (g.expression || []).some(e => e.resource_type === "IPAddressExpression")
     );
     renderNsxGroupsTable();
@@ -2468,21 +2472,38 @@ async function refreshNsxGroups() {
   }
 }
 
+function _isZtGroup(g) {
+  return (g.tags || []).some(t => t.scope === "creator" && t.tag === "zero-trust");
+}
+
+function toggleNsxGroupZtOnly() {
+  _nsxGroupZtOnly = !_nsxGroupZtOnly;
+  _nsxGroupPage = 0;
+  renderNsxGroupsTable();
+}
+
 function renderNsxGroupsTable() {
   const wrap = document.getElementById("nsx-groups-table-wrap");
   if (!wrap) return;
 
   const term = _nsxGroupSearch.toLowerCase();
-  const filtered = _nsxGroups.filter(g =>
-    !term || (g.display_name || "").toLowerCase().includes(term) || (g.path || "").toLowerCase().includes(term)
-  );
+  const filtered = _nsxGroups.filter(g => {
+    if (_nsxGroupZtOnly && !_isZtGroup(g)) return false;
+    return !term || (g.display_name || "").toLowerCase().includes(term) || (g.path || "").toLowerCase().includes(term);
+  });
 
   const total   = filtered.length;
   const start   = _nsxGroupPage * _nsxGroupPerPage;
   const pageItems = filtered.slice(start, start + _nsxGroupPerPage);
 
+  const filterBtn = `<div style="margin-bottom:8px">
+    <button class="btn btn-small${_nsxGroupZtOnly ? " btn-primary" : ""}" onclick="toggleNsxGroupZtOnly()">
+      ${_nsxGroupZtOnly ? "Zero-Trust groups only" : "Show All groups"}
+    </button>
+  </div>`;
+
   if (total === 0) {
-    wrap.innerHTML = `<span class="placeholder">${_nsxGroups.length ? "No groups match the search." : "Connect to NSX Manager to load groups…"}</span>`;
+    wrap.innerHTML = filterBtn + `<span class="placeholder">${_nsxGroups.length ? "No groups match the filter." : "Connect to NSX Manager to load groups…"}</span>`;
     return;
   }
 
@@ -2491,11 +2512,13 @@ function renderNsxGroupsTable() {
       .filter(e => e.resource_type === "IPAddressExpression")
       .flatMap(e => e.ip_addresses || [])
       .join(", ") || "—";
-    const path = g.path || g.id || "—";
+    const path   = g.path || g.id || "—";
+    const appTag = (g.tags || []).find(t => t.scope === "target_application")?.tag || "";
     return `<tr>
       <td>${_esc(g.display_name || g.id)}</td>
       <td><code class="nsx-ip-cell">${_esc(path)}</code></td>
       <td class="nsx-ip-cell">${_esc(ips)}</td>
+      <td>${appTag ? `<span class="rule-seq-badge">${_esc(appTag)}</span>` : "—"}</td>
     </tr>`;
   }).join("");
 
@@ -2507,9 +2530,9 @@ function renderNsxGroupsTable() {
       <button onclick="nsxGroupNext()" ${_nsxGroupPage >= totalPages - 1 ? "disabled" : ""}>Next &#8594;</button>
     </div>` : "";
 
-  wrap.innerHTML = `
+  wrap.innerHTML = filterBtn + `
     <table class="nsp-table">
-      <thead><tr><th>Display Name</th><th>Path</th><th>IP Addresses</th></tr></thead>
+      <thead><tr><th>Display Name</th><th>Path</th><th>IP Addresses</th><th>App</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>${pager}`;
 }
@@ -2522,8 +2545,11 @@ function onNsxGroupSearch(val) {
 
 function nsxGroupPrev() { if (_nsxGroupPage > 0) { _nsxGroupPage--; renderNsxGroupsTable(); } }
 function nsxGroupNext() {
-  const term = _nsxGroupSearch.toLowerCase();
-  const total = _nsxGroups.filter(g => !term || (g.display_name || "").toLowerCase().includes(term)).length;
+  const term  = _nsxGroupSearch.toLowerCase();
+  const total = _nsxGroups.filter(g => {
+    if (_nsxGroupZtOnly && !_isZtGroup(g)) return false;
+    return !term || (g.display_name || "").toLowerCase().includes(term);
+  }).length;
   if ((_nsxGroupPage + 1) * _nsxGroupPerPage < total) { _nsxGroupPage++; renderNsxGroupsTable(); }
 }
 
@@ -2539,10 +2565,14 @@ async function onboardTargetApp(e) {
   const prefix  = targetApp.split("_")[0];
   const appSlug = targetApp.replace(/_/g, "-");
 
+  const ztTags = [
+    { scope: "creator",            tag: "zero-trust" },
+    { scope: "target_application", tag: targetApp },
+  ];
   const groups = [
-    { group_id: `${appSlug}-target-ipaddr`,        display_name: `${appSlug}-target-ipaddr`,        ip_addresses: [ip] },
-    { group_id: `${prefix}-bypass-ipaddr`,          display_name: `${prefix}-bypass-ipaddr`,          ip_addresses: [] },
-    { group_id: `${prefix}-JIT-active-users-ipaddr`, display_name: `${prefix}-JIT-active-users-ipaddr`, ip_addresses: [] },
+    { group_id: `${appSlug}-target-ipaddr`,          display_name: `${appSlug}-target-ipaddr`,          ip_addresses: [ip], tags: ztTags },
+    { group_id: `${prefix}-bypass-ipaddr`,           display_name: `${prefix}-bypass-ipaddr`,           ip_addresses: [],   tags: ztTags },
+    { group_id: `${prefix}-JIT-active-users-ipaddr`, display_name: `${prefix}-JIT-active-users-ipaddr`, ip_addresses: [],   tags: ztTags },
   ];
 
   const btn = document.getElementById("nsx-onboard-btn");
@@ -2632,21 +2662,34 @@ async function refreshNsxGwPolicies() {
   }
 }
 
+function toggleNsxGwpLocalOnly() {
+  _nsxGwpLocalOnly = !_nsxGwpLocalOnly;
+  _nsxGwpPage = 0;
+  renderNsxGwpTable();
+}
+
 function renderNsxGwpTable() {
   const wrap = document.getElementById("nsx-gwp-table-wrap");
   if (!wrap) return;
 
   const term = _nsxGwpSearch.toLowerCase();
-  const filtered = _nsxGwPolicies.filter(p =>
-    !term || (p.display_name || "").toLowerCase().includes(term) || (p.category || "").toLowerCase().includes(term)
-  );
+  const filtered = _nsxGwPolicies.filter(p => {
+    if (_nsxGwpLocalOnly && (p.category || "") !== "LocalGatewayRules") return false;
+    return !term || (p.display_name || "").toLowerCase().includes(term) || (p.category || "").toLowerCase().includes(term);
+  });
 
   const total = filtered.length;
   const start = _nsxGwpPage * _nsxGwpPerPage;
   const pageItems = filtered.slice(start, start + _nsxGwpPerPage);
 
+  const filterBtn = `<div style="margin-bottom:8px">
+    <button class="btn btn-small${_nsxGwpLocalOnly ? " btn-primary" : ""}" onclick="toggleNsxGwpLocalOnly()">
+      ${_nsxGwpLocalOnly ? "LocalGatewayRules only" : "Show All categories"}
+    </button>
+  </div>`;
+
   if (total === 0) {
-    wrap.innerHTML = `<span class="placeholder">${_nsxGwPolicies.length ? "No policies match the search." : "Connect to NSX Manager to load policies…"}</span>`;
+    wrap.innerHTML = filterBtn + `<span class="placeholder">${_nsxGwPolicies.length ? "No policies match the filter." : "Connect to NSX Manager to load policies…"}</span>`;
     return;
   }
 
@@ -2673,7 +2716,7 @@ function renderNsxGwpTable() {
       <button onclick="nsxGwpNext()" ${_nsxGwpPage >= totalPages - 1 ? "disabled" : ""}>Next &#8594;</button>
     </div>` : "";
 
-  wrap.innerHTML = `
+  wrap.innerHTML = filterBtn + `
     <table class="nsp-table">
       <thead><tr><th>Display Name</th><th>Category</th><th>Rules</th><th>Stateful</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
@@ -2688,8 +2731,11 @@ function onNsxGwpSearch(val) {
 
 function nsxGwpPrev() { if (_nsxGwpPage > 0) { _nsxGwpPage--; renderNsxGwpTable(); } }
 function nsxGwpNext() {
-  const term = _nsxGwpSearch.toLowerCase();
-  const total = _nsxGwPolicies.filter(p => !term || (p.display_name || "").toLowerCase().includes(term)).length;
+  const term  = _nsxGwpSearch.toLowerCase();
+  const total = _nsxGwPolicies.filter(p => {
+    if (_nsxGwpLocalOnly && (p.category || "") !== "LocalGatewayRules") return false;
+    return !term || (p.display_name || "").toLowerCase().includes(term);
+  }).length;
   if ((_nsxGwpPage + 1) * _nsxGwpPerPage < total) { _nsxGwpPage++; renderNsxGwpTable(); }
 }
 
@@ -2700,6 +2746,41 @@ async function refreshNsxTier0s() {
     const data = await r.json();
     _nsxTier0s = data.results || [];
   } catch (_) { _nsxTier0s = []; }
+}
+
+async function refreshNsxTier1s() {
+  try {
+    const r = await fetch("/nsx-policy/tier1s");
+    if (!r.ok) { _nsxTier1s = []; return; }
+    const data = await r.json();
+    _nsxTier1s = data.results || [];
+  } catch (_) { _nsxTier1s = []; }
+}
+
+function _enforcementOptions(selectedPath) {
+  const opts = [`<option value="ANY"${!selectedPath || selectedPath === "ANY" ? " selected" : ""}>ANY (all gateways)</option>`];
+  if (_nsxTier1s.length) {
+    opts.push(`<optgroup label="Tier-1 Gateways">`);
+    _nsxTier1s.forEach(t => {
+      const path = t.path || `/infra/tier-1s/${t.id}`;
+      const sel  = path === selectedPath ? " selected" : "";
+      opts.push(`<option value="${_esc(path)}"${sel}>${_esc(t.display_name || t.id)}</option>`);
+    });
+    opts.push(`</optgroup>`);
+  }
+  if (_nsxTier0s.length) {
+    opts.push(`<optgroup label="Tier-0 Gateways">`);
+    _nsxTier0s.forEach(t => {
+      const path = t.path || `/infra/tier-0s/${t.id}`;
+      const sel  = path === selectedPath ? " selected" : "";
+      opts.push(`<option value="${_esc(path)}"${sel}>${_esc(t.display_name || t.id)}</option>`);
+    });
+    opts.push(`</optgroup>`);
+  }
+  if (_nsxTier1s.length === 0 && _nsxTier0s.length === 0) {
+    opts.push(`<option value="" disabled>— no gateways loaded —</option>`);
+  }
+  return opts.join("");
 }
 
 // ── Create GW Policy Modal ─────────────────────────────────────────────────────
@@ -2770,6 +2851,11 @@ function openCreateGwPolicyModal() {
       <select id="gwp-target-app">${appOptions}</select>
       <div style="font-size:var(--text-xs);opacity:.65;margin-top:4px" id="gwp-policy-name-hint"></div>
     </div>
+    <div class="form-group">
+      <label>Enforcement Point (Scope)</label>
+      <select id="gwp-enforcement-point">${_enforcementOptions("")}</select>
+      <div style="font-size:var(--text-xs);opacity:.65;margin-top:4px">Select the T1 or T0 gateway this policy applies to, or ANY for all gateways.</div>
+    </div>
     <div id="gwp-create-rules-container"></div>
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
       <button class="btn" onclick="closeModal()">Cancel</button>
@@ -2803,11 +2889,13 @@ function _gwpPhase2() {
     { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], services: ["ANY"], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: ["ANY"] },
   ];
 
+  const enforcementPoint = document.getElementById("gwp-enforcement-point")?.value || "ANY";
   const container = document.getElementById("gwp-create-rules-container");
   if (container) {
     container.innerHTML = rules.map(_gwpRuleCard).join("");
-    container.dataset.policyName = policyName;
-    container.dataset.targetApp  = targetApp;
+    container.dataset.policyName       = policyName;
+    container.dataset.targetApp        = targetApp;
+    container.dataset.enforcementScope = enforcementPoint;
   }
 
   document.getElementById("gwp-next-btn").style.display   = "none";
@@ -2830,8 +2918,10 @@ async function submitCreateGwPolicy() {
   const container = document.getElementById("gwp-create-rules-container");
   if (!container) return;
 
-  const targetApp  = container.dataset.targetApp;
-  const policyName = container.dataset.policyName;
+  const targetApp        = container.dataset.targetApp;
+  const policyName       = container.dataset.policyName;
+  const enforcementScope = container.dataset.enforcementScope || "ANY";
+  const scopeArray       = enforcementScope === "ANY" ? ["ANY"] : [enforcementScope];
   const app = _nsxOnboardedApps.find(a => a.target_app === targetApp);
   if (!app || !policyName) return;
 
@@ -2839,9 +2929,9 @@ async function submitCreateGwPolicy() {
   const cards = container.querySelectorAll(".modal-nsp-rule-card");
 
   const baseRules = [
-    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
-    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
-    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], services: ["ANY"], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], services: ["ANY"], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], services: ["ANY"], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
   ];
 
   const rules = baseRules.map((base, i) => cards[i] ? _collectRuleEdits(cards[i], base) : base);
@@ -2850,6 +2940,7 @@ async function submitCreateGwPolicy() {
     id:           policyName,
     display_name: policyName,
     category:     "LocalGatewayRules",
+    scope:        scopeArray,
     stateful:     true,
     tcp_strict:   true,
     rules,

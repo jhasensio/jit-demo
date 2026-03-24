@@ -121,17 +121,25 @@ class NSXClient:
         except Exception as exc:
             return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
 
-    async def create_group(self, group_id: str, display_name: str, ip_addresses: list[str]) -> dict:
+    async def create_group(
+        self,
+        group_id: str,
+        display_name: str,
+        ip_addresses: list[str],
+        tags: list[dict] | None = None,
+    ) -> dict:
         """PATCH .../groups/{group_id} — upsert an IPAddressExpression group (creates if absent)."""
         url = f"{self._base()}/policy/api/v1/infra/domains/default/groups/{group_id}"
         expression = (
             [{"resource_type": "IPAddressExpression", "ip_addresses": ip_addresses}]
             if ip_addresses else []
         )
-        payload = {
+        payload: dict = {
             "display_name": display_name,
             "expression": expression,
         }
+        if tags:
+            payload["tags"] = tags
         try:
             async with self._mk_client() as c:
                 r = await c.patch(url, json=payload)
@@ -235,6 +243,17 @@ class NSXClient:
         try:
             async with self._mk_client() as c:
                 r = await c.get(f"{self._base()}/policy/api/v1/infra/tier-0s")
+            if r.status_code == 200:
+                return {"success": True, "results": r.json().get("results", []), "error": None}
+            return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+        except Exception as exc:
+            return {"success": False, "results": [], "error": str(exc)}
+
+    async def list_tier1s(self) -> dict:
+        """GET /policy/api/v1/infra/tier-1s → {"success", "results", "error"}"""
+        try:
+            async with self._mk_client() as c:
+                r = await c.get(f"{self._base()}/policy/api/v1/infra/tier-1s")
             if r.status_code == 200:
                 return {"success": True, "results": r.json().get("results", []), "error": None}
             return {"success": False, "results": [], "error": f"HTTP {r.status_code}: {r.text[:200]}"}

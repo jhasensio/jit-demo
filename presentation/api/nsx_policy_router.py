@@ -58,18 +58,28 @@ async def list_tier0s() -> dict:
     return {"results": result["results"]}
 
 
+@router.get("/tier1s")
+async def list_tier1s() -> dict:
+    client = _get_nsx_client()
+    result = await client.list_tier1s()
+    if not result["success"]:
+        raise HTTPException(status_code=502, detail=result.get("error", "NSX request failed"))
+    return {"results": result["results"]}
+
+
 # ─── Write endpoints ──────────────────────────────────────────────────────────
 
 @router.post("/groups")
 async def create_group(body: dict) -> dict:
-    group_id    = (body.get("group_id") or "").strip()
+    group_id     = (body.get("group_id") or "").strip()
     display_name = (body.get("display_name") or group_id).strip()
     ip_addresses = body.get("ip_addresses") or []
+    tags         = body.get("tags") or None
     if not group_id:
         raise HTTPException(status_code=422, detail="group_id is required")
 
     client = _get_nsx_client()
-    result = await client.create_group(group_id, display_name, ip_addresses)
+    result = await client.create_group(group_id, display_name, ip_addresses, tags=tags)
 
     await event_bus.publish({
         "level": "SUCCESS" if result["success"] else "ERROR",
