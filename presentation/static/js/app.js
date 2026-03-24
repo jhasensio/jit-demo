@@ -2476,10 +2476,7 @@ async function refreshNsxGroups() {
     const r = await fetch("/nsx-policy/groups");
     if (!r.ok) { _nsxGroups = []; renderNsxGroupsTable(); return; }
     const data = await r.json();
-    _nsxGroups = (data.results || []).filter(g =>
-      (g.group_type || []).includes("IPAddress") ||
-      (g.expression || []).some(e => e.resource_type === "IPAddressExpression")
-    );
+    _nsxGroups = data.results || [];
     renderNsxGroupsTable();
   } catch (_) {
     _nsxGroups = [];
