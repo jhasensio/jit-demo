@@ -3034,3 +3034,22 @@ header h1 {
   word-break: break-all;
   max-width: 300px;
 }
+
+/* ─── vDefend rule card — read-only sequence & protocol badges ────────────── */
+.rule-seq-badge,
+.rule-proto-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 149, 184, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+/* Narrow the rule-fields grid to 2 editable + 2 badge columns */
+.gwp-rule-fields-row {
+  grid-template-columns: 1fr 1fr auto auto !important;
+}

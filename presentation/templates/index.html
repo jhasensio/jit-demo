@@ -884,39 +884,21 @@
       <div class="avi-policy-header">
         <div>
           <h2>vDefend Policy Configuration <span class="dim">— Gateway Firewall</span></h2>
-          <p>Configure NSX Security Groups and Gateway Firewall Policies for JIT access control.</p>
+          <p>Onboard applications, create gateway firewall policies, and inspect security groups.</p>
         </div>
       </div>
 
       <div class="avi-policy-stacked">
 
-        <!-- ── Security Groups ── -->
+        <!-- ── Deck 1: Application Onboarding ── -->
         <div class="panel">
-          <div class="panel-hd">
-            Security Groups
-            <div class="panel-hd-actions">
-              <button class="btn-clear" onclick="refreshNsxGroups()" aria-label="Refresh groups">&#8635;</button>
-            </div>
-          </div>
+          <div class="panel-hd">Application Onboarding</div>
           <div class="panel-bd">
-            <div class="nsp-search-bar">
-              <input type="search" id="nsx-group-search" placeholder="Search groups…" oninput="onNsxGroupSearch(this.value)" autocomplete="off" />
-            </div>
-            <div id="nsx-groups-table-wrap">
-              <span class="placeholder">Connect to NSX Manager to load groups…</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- ── Map Target App → Destination Security Group ── -->
-        <div class="panel">
-          <div class="panel-hd">Map Target Application to Destination Security Group</div>
-          <div class="panel-bd">
-            <form id="nsx-group-map-form" onsubmit="saveNsxGroupMapping(event)">
+            <form id="nsx-onboard-form" onsubmit="onboardTargetApp(event)">
               <div class="avi-attach-row">
                 <div class="form-group form-group--flush">
-                  <label for="nsx-map-target-app">Target Application</label>
-                  <select id="nsx-map-target-app" required>
+                  <label for="nsx-onboard-target-app">Target Application</label>
+                  <select id="nsx-onboard-target-app" required>
                     <option value="">— select target application —</option>
                     <option value="HR_APP_01">HR_APP_01</option>
                     <option value="FIN_APP_01">FIN_APP_01</option>
@@ -924,23 +906,21 @@
                   </select>
                 </div>
                 <div class="form-group form-group--flush">
-                  <label for="nsx-map-group">Destination Security Group</label>
-                  <select id="nsx-map-group" required>
-                    <option value="">— Connect to NSX to load —</option>
-                  </select>
+                  <label for="nsx-onboard-ip">Application IP Address</label>
+                  <input type="text" id="nsx-onboard-ip" placeholder="e.g. 10.114.209.72" autocomplete="off" required />
                 </div>
                 <div class="form-submit-col">
-                  <button type="submit" class="btn btn-primary btn-nowrap">Save Mapping</button>
+                  <button type="submit" class="btn btn-primary btn-nowrap" id="nsx-onboard-btn">Create</button>
                 </div>
               </div>
             </form>
-            <div id="nsx-group-mappings-wrap" style="margin-top:12px;">
-              <span class="placeholder">No mappings saved yet.</span>
+            <div id="nsx-onboarded-apps-wrap" style="margin-top:12px;">
+              <span class="placeholder">No applications onboarded yet.</span>
             </div>
           </div>
         </div>
 
-        <!-- ── Gateway Firewall Policies ── -->
+        <!-- ── Deck 2: Gateway Firewall Policies ── -->
         <div class="panel">
           <div class="panel-hd">
             Gateway Firewall Policies
@@ -955,6 +935,24 @@
             </div>
             <div id="nsx-gwp-table-wrap">
               <span class="placeholder">Connect to NSX Manager to load policies…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Deck 3: Security Groups (read-only inspection) ── -->
+        <div class="panel">
+          <div class="panel-hd">
+            Security Groups
+            <div class="panel-hd-actions">
+              <button class="btn-clear" onclick="refreshNsxGroups()" aria-label="Refresh groups">&#8635;</button>
+            </div>
+          </div>
+          <div class="panel-bd">
+            <div class="nsp-search-bar">
+              <input type="search" id="nsx-group-search" placeholder="Search groups…" oninput="onNsxGroupSearch(this.value)" autocomplete="off" />
+            </div>
+            <div id="nsx-groups-table-wrap">
+              <span class="placeholder">Connect to NSX Manager to load groups…</span>
             </div>
           </div>
         </div>

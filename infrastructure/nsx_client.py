@@ -121,6 +121,31 @@ class NSXClient:
         except Exception as exc:
             return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
 
+    async def create_group(self, group_id: str, display_name: str, ip_addresses: list[str]) -> dict:
+        """PATCH .../groups/{group_id} — upsert an IPAddressExpression group (creates if absent)."""
+        url = f"{self._base()}/policy/api/v1/infra/domains/default/groups/{group_id}"
+        payload = {
+            "display_name": display_name,
+            "expression": [{"resource_type": "IPAddressExpression", "ip_addresses": ip_addresses}],
+        }
+        try:
+            async with self._mk_client() as c:
+                r = await c.patch(url, json=payload)
+            success = r.status_code in (200, 201)
+            body = {}
+            try:
+                body = r.json()
+            except Exception:
+                pass
+            return {
+                "success": success,
+                "status_code": r.status_code,
+                "body": body,
+                "error": None if success else r.text,
+            }
+        except Exception as exc:
+            return {"success": False, "status_code": None, "body": {}, "error": str(exc)}
+
     # ── Policy API read methods ───────────────────────────────────────────────
 
     async def list_groups(self) -> dict:
@@ -180,7 +205,7 @@ class NSXClient:
                 "success": success,
                 "status_code": r.status_code,
                 "body": body,
-                "error": None if success else r.text[:300],
+                "error": None if success else r.text,
             }
         except Exception as exc:
             return {"success": False, "status_code": None, "body": {}, "error": str(exc)}

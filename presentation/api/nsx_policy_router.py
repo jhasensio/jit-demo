@@ -60,7 +60,34 @@ async def list_tier0s() -> dict:
 
 # ─── Write endpoints ──────────────────────────────────────────────────────────
 
-@router.put("/gateway-policies/{policy_id}")
+@router.post("/groups")
+async def create_group(body: dict) -> dict:
+    group_id    = (body.get("group_id") or "").strip()
+    display_name = (body.get("display_name") or group_id).strip()
+    ip_addresses = body.get("ip_addresses") or []
+    if not group_id:
+        raise HTTPException(status_code=422, detail="group_id is required")
+
+    client = _get_nsx_client()
+    result = await client.create_group(group_id, display_name, ip_addresses)
+
+    await event_bus.publish({
+        "level": "SUCCESS" if result["success"] else "ERROR",
+        "domain": "CONNECTIONS",
+        "message": (
+            f"vDefend Security Group '{display_name}' created"
+            if result["success"]
+            else f"Failed to create Security Group '{display_name}': {result.get('error')}"
+        ),
+        "payload": result.get("body"),
+    })
+
+    if not result["success"]:
+        raise HTTPException(status_code=502, detail=result.get("error", "NSX request failed"))
+    return result
+
+
+@router.patch("/gateway-policies/{policy_id}")
 async def create_or_update_gateway_policy(policy_id: str, body: dict) -> dict:
     client = _get_nsx_client()
     result = await client.create_or_update_gateway_policy(policy_id, body)

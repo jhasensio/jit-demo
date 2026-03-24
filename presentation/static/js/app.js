@@ -1488,7 +1488,7 @@ let _nsxGroups        = [];
 let _nsxGroupPage     = 0;
 let _nsxGroupPerPage  = 10;
 let _nsxGroupSearch   = "";
-let _nsxGroupMappings = [];
+let _nsxOnboardedApps = [];  // [{target_app, prefix, dest_group_path, dest_group_name, dest_ip, bypass_group_path, jit_group_path, created_at}]
 let _nsxGwPolicies    = [];
 let _nsxGwpPage       = 0;
 let _nsxGwpPerPage    = 10;
@@ -1516,6 +1516,24 @@ function closeModal() {
   document.getElementById("modal-overlay")?.classList.remove("open");
   document.getElementById("modal-content").innerHTML = "";
   _expandedNspData = null;
+}
+
+// ── NSX error detail modal ─────────────────────────────────────────────────────
+function _showNsxError(title, rawError, sentPayload) {
+  let parsed = rawError;
+  try { parsed = JSON.stringify(JSON.parse(rawError), null, 2); } catch (_) {}
+  const payloadStr = JSON.stringify(sentPayload, null, 2);
+  openModal(`
+    <h3 class="modal-title" style="color:var(--text-error)">${_esc(title)}</h3>
+    <p style="font-size:var(--text-xs);opacity:.7;margin-bottom:6px">NSX error response:</p>
+    <pre style="background:var(--bg-secondary);padding:10px;border-radius:4px;font-size:0.62rem;max-height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all">${_esc(parsed)}</pre>
+    <details style="margin-top:8px">
+      <summary style="font-size:var(--text-xs);cursor:pointer;opacity:.7">Sent payload</summary>
+      <pre style="background:var(--bg-secondary);padding:10px;border-radius:4px;font-size:0.62rem;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin-top:4px">${_esc(payloadStr)}</pre>
+    </details>
+    <div style="margin-top:12px;text-align:right">
+      <button class="btn" onclick="closeModal()">Close</button>
+    </div>`);
 }
 
 // ── Toast notifications ────────────────────────────────────────────────────────
@@ -2418,7 +2436,7 @@ async function deleteMapping(id) {
 
 async function loadNsxPolicyView() {
   await Promise.all([refreshNsxGroups(), refreshNsxGwPolicies(), refreshNsxTier0s()]);
-  loadNsxGroupMappings();
+  loadNsxOnboardedApps();
 }
 
 // ── Deck 1: Security Groups ────────────────────────────────────────────────────
@@ -2426,18 +2444,15 @@ async function loadNsxPolicyView() {
 async function refreshNsxGroups() {
   try {
     const r = await fetch("/nsx-policy/groups");
-    if (!r.ok) { _nsxGroups = []; renderNsxGroupsTable(); populateNsxGroupDropdown(); return; }
+    if (!r.ok) { _nsxGroups = []; renderNsxGroupsTable(); return; }
     const data = await r.json();
-    // Only show groups that contain an IPAddressExpression
     _nsxGroups = (data.results || []).filter(g =>
       (g.expression || []).some(e => e.resource_type === "IPAddressExpression")
     );
     renderNsxGroupsTable();
-    populateNsxGroupDropdown();
   } catch (_) {
     _nsxGroups = [];
     renderNsxGroupsTable();
-    populateNsxGroupDropdown();
   }
 }
 
@@ -2500,59 +2515,94 @@ function nsxGroupNext() {
   if ((_nsxGroupPage + 1) * _nsxGroupPerPage < total) { _nsxGroupPage++; renderNsxGroupsTable(); }
 }
 
-function populateNsxGroupDropdown() {
-  const sel = document.getElementById("nsx-map-group");
-  if (!sel) return;
-  sel.innerHTML = '<option value="">— select group —</option>' +
-    _nsxGroups.map(g => `<option value="${_esc(g.path || g.id)}" data-name="${_esc(g.display_name || g.id)}">${_esc(g.display_name || g.id)}</option>`).join("");
-}
+// ── Deck 1: Application Onboarding ────────────────────────────────────────────
 
-// ── Deck 1b: Target App → Group Mappings ──────────────────────────────────────
-
-function saveNsxGroupMapping(e) {
+async function onboardTargetApp(e) {
   e.preventDefault();
-  const targetApp = document.getElementById("nsx-map-target-app").value;
-  const groupSel  = document.getElementById("nsx-map-group");
-  const groupPath = groupSel.value;
-  const groupName = groupSel.options[groupSel.selectedIndex]?.dataset?.name || groupPath;
-  if (!targetApp || !groupPath) return;
+  const targetApp = document.getElementById("nsx-onboard-target-app").value;
+  const ip        = (document.getElementById("nsx-onboard-ip").value || "").trim();
+  if (!targetApp || !ip) return;
 
-  // Deduplicate by target_app
-  _nsxGroupMappings = _nsxGroupMappings.filter(m => m.target_app !== targetApp);
-  _nsxGroupMappings.push({ target_app: targetApp, group_path: groupPath, group_name: groupName });
-  try { localStorage.setItem("nsxGroupMappings", JSON.stringify(_nsxGroupMappings)); } catch (_) {}
-  renderNsxGroupMappingsTable();
-  document.getElementById("nsx-group-map-form")?.reset();
+  // Derive prefix (HR_APP_01 → "HR") and app name slug (HR_APP_01 → "HR-APP-01")
+  const prefix  = targetApp.split("_")[0];
+  const appSlug = targetApp.replace(/_/g, "-");
+
+  const groups = [
+    { group_id: `${appSlug}-target-ipaddr`,        display_name: `${appSlug}-target-ipaddr`,        ip_addresses: [ip] },
+    { group_id: `${prefix}-bypass-ipaddr`,          display_name: `${prefix}-bypass-ipaddr`,          ip_addresses: [] },
+    { group_id: `${prefix}-JIT-active-users-ipaddr`, display_name: `${prefix}-JIT-active-users-ipaddr`, ip_addresses: [] },
+  ];
+
+  const btn = document.getElementById("nsx-onboard-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Creating…"; }
+
+  try {
+    for (const g of groups) {
+      const r = await fetch("/nsx-policy/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(g),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        _showNsxError(`Failed creating group "${g.group_id}"`, err.detail || r.statusText, g);
+        return;
+      }
+    }
+
+    // Persist onboarded app (deduplicate by target_app)
+    _nsxOnboardedApps = _nsxOnboardedApps.filter(a => a.target_app !== targetApp);
+    _nsxOnboardedApps.push({
+      target_app:       targetApp,
+      prefix,
+      dest_group_path:  `/infra/domains/default/groups/${appSlug}-target-ipaddr`,
+      dest_group_name:  `${appSlug}-target-ipaddr`,
+      dest_ip:          ip,
+      bypass_group_path: `/infra/domains/default/groups/${prefix}-bypass-ipaddr`,
+      jit_group_path:   `/infra/domains/default/groups/${prefix}-JIT-active-users-ipaddr`,
+      created_at:       new Date().toISOString(),
+    });
+    try { localStorage.setItem("nsxOnboardedApps", JSON.stringify(_nsxOnboardedApps)); } catch (_) {}
+
+    renderNsxOnboardedAppsTable();
+    refreshNsxGroups();
+    document.getElementById("nsx-onboard-form")?.reset();
+    showToast(`${targetApp} onboarded — 3 security groups created.`, "success");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Create"; }
+  }
 }
 
-function loadNsxGroupMappings() {
-  try { _nsxGroupMappings = JSON.parse(localStorage.getItem("nsxGroupMappings") || "[]"); } catch (_) { _nsxGroupMappings = []; }
-  renderNsxGroupMappingsTable();
+function loadNsxOnboardedApps() {
+  try { _nsxOnboardedApps = JSON.parse(localStorage.getItem("nsxOnboardedApps") || "[]"); } catch (_) { _nsxOnboardedApps = []; }
+  renderNsxOnboardedAppsTable();
 }
 
-function renderNsxGroupMappingsTable() {
-  const wrap = document.getElementById("nsx-group-mappings-wrap");
+function renderNsxOnboardedAppsTable() {
+  const wrap = document.getElementById("nsx-onboarded-apps-wrap");
   if (!wrap) return;
-  if (_nsxGroupMappings.length === 0) {
-    wrap.innerHTML = '<span class="placeholder">No mappings saved yet.</span>';
+  if (_nsxOnboardedApps.length === 0) {
+    wrap.innerHTML = '<span class="placeholder">No applications onboarded yet.</span>';
     return;
   }
-  const rows = _nsxGroupMappings.map((m, i) => `<tr>
-    <td>${_esc(m.target_app)}</td>
-    <td>${_esc(m.group_name || m.group_path)}</td>
-    <td><code class="nsx-ip-cell" style="font-size:0.6rem">${_esc(m.group_path)}</code></td>
-    <td><button class="btn btn-small btn-danger" onclick="deleteNsxGroupMapping(${i})">Delete</button></td>
+  const rows = _nsxOnboardedApps.map((a, i) => `<tr>
+    <td>${_esc(a.target_app)}</td>
+    <td><span class="rule-seq-badge">${_esc(a.prefix)}</span></td>
+    <td>${_esc(a.dest_group_name)}</td>
+    <td><code class="nsx-ip-cell">${_esc(a.dest_ip)}</code></td>
+    <td style="font-size:0.65rem;opacity:.65">${_esc((a.created_at || "").slice(0,19).replace("T"," "))}</td>
+    <td><button class="btn btn-small btn-danger" onclick="deleteNsxOnboardedApp(${i})">Delete</button></td>
   </tr>`).join("");
   wrap.innerHTML = `<table class="nsp-table">
-    <thead><tr><th>Target App</th><th>Security Group</th><th>Path</th><th></th></tr></thead>
+    <thead><tr><th>Target App</th><th>Prefix</th><th>Dest Group</th><th>IP</th><th>Created</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-function deleteNsxGroupMapping(index) {
-  _nsxGroupMappings.splice(index, 1);
-  try { localStorage.setItem("nsxGroupMappings", JSON.stringify(_nsxGroupMappings)); } catch (_) {}
-  renderNsxGroupMappingsTable();
+function deleteNsxOnboardedApp(index) {
+  _nsxOnboardedApps.splice(index, 1);
+  try { localStorage.setItem("nsxOnboardedApps", JSON.stringify(_nsxOnboardedApps)); } catch (_) {}
+  renderNsxOnboardedAppsTable();
 }
 
 // ── Deck 2: Gateway Firewall Policies ─────────────────────────────────────────
@@ -2652,10 +2702,11 @@ function _tier0Options(selectedPath) {
 }
 
 function _gwpRuleCard(rule) {
-  const dirOptions = ["IN_OUT", "IN", "OUT"].map(d => `<option${d === (rule.direction || "IN_OUT") ? " selected" : ""}>${d}</option>`).join("");
-  const ipOptions  = ["IPV4_IPV6", "IPV4", "IPV6"].map(d => `<option${d === (rule.ip_protocol || "IPV4_IPV6") ? " selected" : ""}>${d}</option>`).join("");
+  const dirOptions  = ["IN_OUT", "IN", "OUT"].map(d => `<option${d === (rule.direction || "IN_OUT") ? " selected" : ""}>${d}</option>`).join("");
   const actionClass = (rule.action || "ALLOW") === "ALLOW" ? "modal-nsp-rule-card-action--allow" : "modal-nsp-rule-card-action--deny";
-  const scopePath  = (rule.scope || [])[0] || "";
+  const scopePath   = (rule.scope || [])[0] || "";
+  const proto       = rule.ip_protocol || "IPV4";
+  const seq         = rule.sequence_number ?? "—";
   return `
   <div class="modal-nsp-rule-card" data-rule-id="${_esc(rule.id || "")}">
     <div class="modal-nsp-rule-card-header">
@@ -2668,16 +2719,16 @@ function _gwpRuleCard(rule) {
         <select class="rule-direction">${dirOptions}</select>
       </div>
       <div>
-        <label style="font-size:var(--text-xs);opacity:.7">IP Protocol</label>
-        <select class="rule-ip-protocol">${ipOptions}</select>
-      </div>
-      <div>
         <label style="font-size:var(--text-xs);opacity:.7">Scope (Tier-0)</label>
         <select class="rule-scope">${_tier0Options(scopePath)}</select>
       </div>
-      <div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:var(--text-xs);opacity:.7">IP Protocol</label>
+        <span class="rule-proto-badge">${_esc(proto)}</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
         <label style="font-size:var(--text-xs);opacity:.7">Seq #</label>
-        <input type="number" class="rule-sequence" value="${rule.sequence_number || 0}" min="0" />
+        <span class="rule-seq-badge">${seq}</span>
       </div>
     </div>
     <div style="margin-top:6px;display:flex;gap:16px;align-items:center">
@@ -2692,122 +2743,99 @@ function _gwpRuleCard(rule) {
 }
 
 function openCreateGwPolicyModal() {
+  if (_nsxOnboardedApps.length === 0) {
+    showToast("Onboard at least one application first (Deck 1).", "error");
+    return;
+  }
+  const appOptions = _nsxOnboardedApps.map(a =>
+    `<option value="${_esc(a.target_app)}">${_esc(a.target_app)}</option>`
+  ).join("");
+
   openModal(`
     <h3 class="modal-title">New Gateway Firewall Policy</h3>
     <div class="form-group">
-      <label>Policy Name / ID</label>
-      <input id="gwp-new-name" type="text" placeholder="e.g. HR-GW-netpolicy" autocomplete="off" />
-      <div style="font-size:var(--text-xs);opacity:.65;margin-top:4px" id="gwp-prefix-hint"></div>
+      <label>Target Application</label>
+      <select id="gwp-target-app">${appOptions}</select>
+      <div style="font-size:var(--text-xs);opacity:.65;margin-top:4px" id="gwp-policy-name-hint"></div>
     </div>
     <div id="gwp-create-rules-container"></div>
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
       <button class="btn" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" id="gwp-next-btn" onclick="_gwpPhase2()">Add Rules ›</button>
+      <button class="btn btn-primary" id="gwp-next-btn" onclick="_gwpPhase2()">Preview Rules ›</button>
       <button class="btn btn-primary" id="gwp-submit-btn" style="display:none" onclick="submitCreateGwPolicy()">Create Policy</button>
     </div>`);
 
-  document.getElementById("gwp-new-name")?.addEventListener("input", function() {
-    const hint = document.getElementById("gwp-prefix-hint");
-    if (!hint) return;
-    const name  = this.value.trim();
-    const parts = name.split(/[-_]/);
-    hint.textContent = parts.length >= 2 ? `Detected prefix: "${parts[0]}"` : "";
-  });
+  const hint = document.getElementById("gwp-policy-name-hint");
+  const sel  = document.getElementById("gwp-target-app");
+  const _updateHint = () => {
+    if (!sel || !hint) return;
+    const app = _nsxOnboardedApps.find(a => a.target_app === sel.value);
+    hint.textContent = app ? `Policy ID: ${app.prefix}-GW-netpolicy` : "";
+  };
+  sel?.addEventListener("change", _updateHint);
+  _updateHint();
 }
 
 function _gwpPhase2() {
-  const name = (document.getElementById("gwp-new-name")?.value || "").trim();
-  if (!name) { showToast("Enter a policy name first.", "error"); return; }
-  const parts  = name.split(/[-_]/);
-  const prefix = parts[0];
-  const dest   = _nsxGroupMappings.length > 0 ? _nsxGroupMappings[0].group_path : "ANY";
+  const targetApp = document.getElementById("gwp-target-app")?.value;
+  if (!targetApp) { showToast("Select a target application.", "error"); return; }
+  const app = _nsxOnboardedApps.find(a => a.target_app === targetApp);
+  if (!app) { showToast("Application not found in onboarded list.", "error"); return; }
+
+  const { prefix, dest_group_path: dest, bypass_group_path: bypass, jit_group_path: jit } = app;
+  const policyName = `${prefix}-GW-netpolicy`;
 
   const rules = [
-    {
-      id: `${prefix}-bypass-rule`,
-      display_name: `${prefix}-bypass-rule`,
-      action: "ALLOW",
-      source_groups: [`/infra/domains/default/groups/${prefix}-bypass-ipaddr`],
-      destination_groups: [dest],
-      sequence_number: 5,
-      direction: "IN_OUT",
-      ip_protocol: "IPV4_IPV6",
-      logged: true,
-      disabled: false,
-      scope: [],
-    },
-    {
-      id: `${prefix}-JIT-active-users-allow`,
-      display_name: `${prefix}-JIT-active-users-allow`,
-      action: "ALLOW",
-      source_groups: [`/infra/domains/default/groups/${prefix}-JIT-active-users-ipaddr`],
-      destination_groups: [dest],
-      sequence_number: 7,
-      direction: "IN_OUT",
-      ip_protocol: "IPV4_IPV6",
-      logged: true,
-      disabled: false,
-      scope: [],
-    },
-    {
-      id: `${prefix}-cleanup-deny-all`,
-      display_name: `${prefix}-cleanup-deny-all`,
-      action: "DROP",
-      source_groups: ["ANY"],
-      destination_groups: [dest],
-      sequence_number: 10,
-      direction: "IN_OUT",
-      ip_protocol: "IPV4_IPV6",
-      logged: true,
-      disabled: false,
-      scope: [],
-    },
+    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: [] },
+    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: [] },
+    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false, scope: [] },
   ];
 
   const container = document.getElementById("gwp-create-rules-container");
-  if (container) container.innerHTML = rules.map(_gwpRuleCard).join("");
+  if (container) {
+    container.innerHTML = rules.map(_gwpRuleCard).join("");
+    container.dataset.policyName = policyName;
+    container.dataset.targetApp  = targetApp;
+  }
 
   document.getElementById("gwp-next-btn").style.display   = "none";
   document.getElementById("gwp-submit-btn").style.display = "";
-
-  // Store rules data on container for submit
-  if (container) container.dataset.prefix = prefix;
 }
 
 function _collectRuleEdits(card, baseRule) {
+  // sequence_number and ip_protocol are enforced from baseRule — not editable in the UI
   return {
     ...baseRule,
-    direction:        card.querySelector(".rule-direction")?.value   || "IN_OUT",
-    ip_protocol:      card.querySelector(".rule-ip-protocol")?.value || "IPV4_IPV6",
-    sequence_number:  parseInt(card.querySelector(".rule-sequence")?.value || "0", 10),
-    logged:           card.querySelector(".rule-logged")?.checked ?? true,
-    disabled:         card.querySelector(".rule-disabled")?.checked ?? false,
-    scope:            (() => { const v = card.querySelector(".rule-scope")?.value; return v ? [v] : []; })(),
+    direction: card.querySelector(".rule-direction")?.value || "IN_OUT",
+    logged:    card.querySelector(".rule-logged")?.checked ?? true,
+    disabled:  card.querySelector(".rule-disabled")?.checked ?? false,
+    scope:     (() => { const v = card.querySelector(".rule-scope")?.value; return v ? [v] : []; })(),
   };
 }
 
 async function submitCreateGwPolicy() {
-  const name = (document.getElementById("gwp-new-name")?.value || "").trim();
-  if (!name) return;
-  const parts  = name.split(/[-_]/);
-  const prefix = parts[0];
-  const dest   = _nsxGroupMappings.length > 0 ? _nsxGroupMappings[0].group_path : "ANY";
-
-  // Collect rule edits from cards
   const container = document.getElementById("gwp-create-rules-container");
-  const cards     = container ? container.querySelectorAll(".modal-nsp-rule-card") : [];
+  if (!container) return;
+
+  const targetApp  = container.dataset.targetApp;
+  const policyName = container.dataset.policyName;
+  const app = _nsxOnboardedApps.find(a => a.target_app === targetApp);
+  if (!app || !policyName) return;
+
+  const { prefix, dest_group_path: dest, bypass_group_path: bypass, jit_group_path: jit } = app;
+  const cards = container.querySelectorAll(".modal-nsp-rule-card");
 
   const baseRules = [
-    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [`/infra/domains/default/groups/${prefix}-bypass-ipaddr`],            destination_groups: [dest], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4_IPV6", logged: true, disabled: false },
-    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [`/infra/domains/default/groups/${prefix}-JIT-active-users-ipaddr`], destination_groups: [dest], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4_IPV6", logged: true, disabled: false },
-    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],                                                              destination_groups: [dest], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4_IPV6", logged: true, disabled: false },
+    { id: `${prefix}-bypass-rule`,            display_name: `${prefix}-bypass-rule`,            action: "ALLOW", source_groups: [bypass], destination_groups: [dest], sequence_number: 5,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-JIT-active-users-allow`, display_name: `${prefix}-JIT-active-users-allow`, action: "ALLOW", source_groups: [jit],    destination_groups: [dest], sequence_number: 7,  direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
+    { id: `${prefix}-cleanup-deny-all`,       display_name: `${prefix}-cleanup-deny-all`,       action: "DROP",  source_groups: ["ANY"],  destination_groups: [dest], sequence_number: 10, direction: "IN_OUT", ip_protocol: "IPV4", logged: true, disabled: false },
   ];
 
   const rules = baseRules.map((base, i) => cards[i] ? _collectRuleEdits(cards[i], base) : base);
 
   const payload = {
-    id:           name,
-    display_name: name,
+    id:           policyName,
+    display_name: policyName,
     category:     "LocalGatewayRules",
     stateful:     true,
     tcp_strict:   true,
@@ -2815,18 +2843,18 @@ async function submitCreateGwPolicy() {
   };
 
   try {
-    const r = await fetch(`/nsx-policy/gateway-policies/${encodeURIComponent(name)}`, {
-      method: "PUT",
+    const r = await fetch(`/nsx-policy/gateway-policies/${encodeURIComponent(policyName)}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      showToast(`Failed: ${err.detail || r.statusText}`, "error");
+      _showNsxError("Create Gateway Policy failed", err.detail || r.statusText, payload);
       return;
     }
     closeModal();
-    showToast(`Gateway Policy "${name}" created.`, "success");
+    showToast(`Gateway Policy "${policyName}" created.`, "success");
     await refreshNsxGwPolicies();
   } catch (ex) {
     showToast(`Error: ${ex.message}`, "error");
@@ -2877,13 +2905,13 @@ async function submitUpdateGwPolicy(policyId) {
 
   try {
     const r = await fetch(`/nsx-policy/gateway-policies/${encodeURIComponent(policyId)}`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      showToast(`Failed: ${err.detail || r.statusText}`, "error");
+      _showNsxError("Update Gateway Policy failed", err.detail || r.statusText, payload);
       return;
     }
     closeModal();
