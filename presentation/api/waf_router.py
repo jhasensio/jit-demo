@@ -4,6 +4,11 @@ WAF webhook API.
 Receives alert webhooks from VCF Operations for Logs (Log Insight) triggered by
 AVI WAF detection events. Looks up active sessions by offending client IP and
 immediately revokes them via live enforcement — no auth required for this PoC.
+
+Log Insight's default webhook payload carries no source_ip at the top level.
+To include it, configure a custom webhook template in Log Insight and add:
+  "source_ip": "{{source_ip}}"
+If absent, the endpoint attempts to extract the IP from the 'messages' entries.
 """
 from fastapi import APIRouter
 
@@ -27,6 +32,22 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
         }
     )
 
+    # If no IP could be resolved, return early with a clear explanation
+    if not payload.source_ip:
+        note = (
+            "No source_ip found in payload or messages. "
+            "Add \"source_ip\": \"{{source_ip}}\" to the Log Insight webhook template."
+        )
+        await event_bus.publish(
+            {
+                "level": "WARN",
+                "domain": "WAF",
+                "message": f"WAF alert received but no client IP could be resolved — {note}",
+                "payload": payload.model_dump(),
+            }
+        )
+        return WAFRevokeResult(revoked=0, sessions=[], details=[], note=note)
+
     sessions = session_store.get_by_source_ip(payload.source_ip)
     if payload.target_app:
         sessions = [s for s in sessions if s.target_app == payload.target_app]
@@ -40,7 +61,7 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
                 "payload": None,
             }
         )
-        return WAFRevokeResult(revoked=0, sessions=[], details=[])
+        return WAFRevokeResult(revoked=0, sessions=[], details=[], source_ip=payload.source_ip)
 
     details = []
     for s in sessions:
@@ -56,12 +77,7 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
         )
         details.append({"session_key": s.session_key, "enforcement": results})
 
-    ok_count = sum(
-        1
-        for d in details
-        for r in d["enforcement"]
-        if r.get("success")
-    )
+    ok_count = sum(1 for d in details for r in d["enforcement"] if r.get("success"))
     total_enforcements = sum(len(d["enforcement"]) for d in details)
     level = "SUCCESS" if ok_count == total_enforcements else "ERROR"
 
@@ -81,4 +97,5 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
         revoked=len(details),
         sessions=[d["session_key"] for d in details],
         details=details,
+        source_ip=payload.source_ip,
     )

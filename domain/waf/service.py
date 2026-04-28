@@ -5,4 +5,5 @@ def summarize(payload: WAFWebhookPayload) -> str:
     label = payload.attack_type or payload.rule_id or payload.alert_name or "malicious request"
     severity = f" [{payload.severity.upper()}]" if payload.severity else ""
     vs = f" on {payload.virtual_service}" if payload.virtual_service else ""
-    return f"WAF alert{severity}: {label} from {payload.source_ip}{vs}"
+    ip = payload.source_ip or "unknown IP"
+    return f"WAF alert{severity}: {label} from {ip}{vs}"
