@@ -64,12 +64,12 @@ async def client_ip(request: Request) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.get("/user_portal", response_class=HTMLResponse)
 async def user_portal(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse("user_portal.html", {"request": request})
+    return templates.TemplateResponse(request, "user_portal.html")
 
 
 @app.get("/events")
