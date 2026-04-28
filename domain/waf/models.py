@@ -4,45 +4,58 @@ import re
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
-# Regex to find an IPv4 in a string
 _IP_RE = re.compile(r'\b(\d{1,3}(?:\.\d{1,3}){3})\b')
 
-# Field names that may carry the client IP inside a log entry object
-_CLIENT_IP_KEYS = ("source_ip", "client_ip", "clientip", "src_ip", "ClientIP",
-                   "client_addr", "srcip", "remote_addr")
 
-
-def _extract_ip_from_messages(messages_raw) -> str | None:
+def _extract_client_ip(messages_raw) -> str | None:
     """
-    Log Insight puts the triggering log entries in 'messages'.
-    It can be a JSON-encoded string, a list of dicts, or a plain string.
-    Try to extract the first plausible client IP from it.
+    Extract client_ip from Log Insight's messages array.
+
+    Log Insight sends each triggering log entry as:
+      {"text": "...", "timestamp": ..., "fields": [{"name": "client_ip", "content": "1.2.3.4"}, ...]}
+
+    Falls back to a flat key lookup then a regex scan if the structure differs.
     """
     if not messages_raw:
         return None
 
-    # Decode if it's a JSON string
+    # Decode JSON string if needed
     if isinstance(messages_raw, str):
         try:
             messages_raw = json.loads(messages_raw)
         except (json.JSONDecodeError, ValueError):
-            # Fall back: regex scan the raw string
             m = _IP_RE.search(messages_raw)
             return m.group(1) if m else None
 
-    if isinstance(messages_raw, list):
-        for entry in messages_raw:
-            if isinstance(entry, dict):
-                for key in _CLIENT_IP_KEYS:
-                    val = entry.get(key) or entry.get(key.lower())
-                    if val and isinstance(val, str) and _IP_RE.match(val.strip()):
+    if not isinstance(messages_raw, list):
+        return None
+
+    for entry in messages_raw:
+        if not isinstance(entry, dict):
+            continue
+
+        # Primary: Log Insight nested fields array — {"name": "client_ip", "content": "..."}
+        fields = entry.get("fields")
+        if isinstance(fields, list):
+            for f in fields:
+                if isinstance(f, dict) and f.get("name") == "client_ip":
+                    val = f.get("content", "")
+                    if val and _IP_RE.match(val.strip()):
                         return val.strip()
-                # Last resort: scan all string values for an IP
-                for val in entry.values():
-                    if isinstance(val, str):
-                        m = _IP_RE.search(val)
-                        if m:
-                            return m.group(1)
+
+        # Fallback: flat key on the entry dict itself
+        for key in ("client_ip", "clientip", "ClientIP", "client_addr", "src_ip"):
+            val = entry.get(key, "")
+            if val and isinstance(val, str) and _IP_RE.match(val.strip()):
+                return val.strip()
+
+        # Last resort: regex scan all string values in the entry
+        for val in entry.values():
+            if isinstance(val, str):
+                m = _IP_RE.search(val)
+                if m:
+                    return m.group(1)
+
     return None
 
 
@@ -84,17 +97,12 @@ class WAFWebhookPayload(BaseModel):
         # Accept Log Insight's typo variant hit_oeprator
         if "hit_oeprator" in data and "hit_operator" not in data:
             data["hit_operator"] = data.pop("hit_oeprator")
-        # Accept common IP field aliases
-        for alias in ("client_ip", "src_ip", "clientip", "ClientIP"):
-            if alias in data and "source_ip" not in data:
-                data["source_ip"] = data.pop(alias)
-                break
         return data
 
     @model_validator(mode="after")
     def _resolve_ip(self) -> "WAFWebhookPayload":
         if not self.source_ip:
-            self.source_ip = _extract_ip_from_messages(self.messages)
+            self.source_ip = _extract_client_ip(self.messages)
         return self
 
     @property
