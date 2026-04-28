@@ -114,9 +114,9 @@ async def _revoke_session(session_store, session, reason: str) -> None:
     Guard: mark_* returns None if already non-active, preventing duplicate revocations.
     """
     if reason == "ttl":
-        revoked = session_store.mark_expired(session.session_key)
+        revoked = session_store.mark_expired(session.session_key, reason=reason)
     else:
-        revoked = session_store.mark_revoked(session.session_key)
+        revoked = session_store.mark_revoked(session.session_key, reason=reason)
 
     if revoked is None:
         return  # already handled by another concurrent check

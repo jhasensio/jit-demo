@@ -3680,3 +3680,106 @@ header h1 {
 #event-stream-console.filter-ARIA        .log-line:not([data-domain="ARIA"])        { opacity: 0.12; }
 #event-stream-console.filter-CONNECTIONS .log-line:not([data-domain="CONNECTIONS"]) { opacity: 0.12; }
 #event-stream-console.filter-SYSTEM      .log-line:not([data-domain="SYSTEM"])      { opacity: 0.12; }
+
+/* Sessions-console domain filters (mirrors Event Stream pattern) */
+#sessions-console.filter-WAF         .log-line:not([data-domain="WAF"])         { opacity: 0.12; }
+#sessions-console.filter-JIT         .log-line:not([data-domain="JIT"])         { opacity: 0.12; }
+#sessions-console.filter-SESSION     .log-line:not([data-domain="SESSION"])     { opacity: 0.12; }
+#sessions-console.filter-CONNECTIONS .log-line:not([data-domain="CONNECTIONS"]) { opacity: 0.12; }
+
+/* ─── Event chip strips (WAF + Enforcement) ──────────────────────────────────── */
+.ev-chip-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+  margin-left: 2px;
+}
+.ev-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--box-border, rgba(255,255,255,0.12));
+  line-height: 1.6;
+}
+.ev-chip-k {
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.ev-chip-v { color: var(--text-primary); }
+
+.ev-chip-waf  { border-color: rgba(255, 107, 53, 0.35); }
+.ev-chip-waf.sev-high .ev-chip-v { color: var(--text-error); }
+.ev-chip-jit  { border-color: rgba(0, 230, 118, 0.25); }
+.ev-chip-conn { border-color: rgba(64, 196, 255, 0.25); }
+.ev-chip-ok .ev-chip-v  { color: var(--text-success); }
+.ev-chip-err .ev-chip-v { color: var(--text-error); }
+
+/* ─── Session table row pulse animations ──────────────────────────────────── */
+@keyframes row-pulse-success { 0% { background: rgba(13, 122, 63, 0.22); } 100% { background: transparent; } }
+@keyframes row-pulse-error   { 0% { background: rgba(198, 40, 40, 0.22); } 100% { background: transparent; } }
+@keyframes row-pulse-warn    { 0% { background: rgba(136, 96, 0, 0.22);  } 100% { background: transparent; } }
+@keyframes row-pulse-info    { 0% { background: rgba(11, 109, 160, 0.22);} 100% { background: transparent; } }
+.row-pulse-success td { animation: row-pulse-success 1.4s ease-out; }
+.row-pulse-error   td { animation: row-pulse-error   1.4s ease-out; }
+.row-pulse-warn    td { animation: row-pulse-warn    1.4s ease-out; }
+.row-pulse-info    td { animation: row-pulse-info    1.4s ease-out; }
+
+/* ─── Session revocation cause pill ─────────────────────────────────────── */
+.session-cause {
+  display: inline-block;
+  font-size: 0.55rem;
+  padding: 1px 5px;
+  border-radius: 6px;
+  margin-left: 5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.session-cause-wafblock  { background: rgba(255, 107, 53, 0.15); color: #ff6b35; }
+.session-cause-manual    { background: rgba(90, 120, 152, 0.15); color: var(--text-muted); }
+.session-cause-idspoll   { background: rgba(201, 179, 255, 0.15); color: var(--text-domain, #c9b3ff); }
+.session-cause-ttl       { background: rgba(136, 96, 0, 0.15);   color: var(--text-payload); }
+
+/* ─── Session IP sub-lines ───────────────────────────────────────────────── */
+.session-fresh {
+  display: block;
+  font-size: 0.58rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+.session-xff {
+  display: block;
+  font-size: 0.58rem;
+  color: #ff6b35;
+  margin-top: 1px;
+  font-family: var(--font-mono);
+  opacity: 0.85;
+}
+
+/* ─── Inline kill confirmation strip ────────────────────────────────────── */
+.kill-confirm-row td {
+  padding: 4px 8px 6px;
+  background: var(--bg-secondary);
+}
+.kill-confirm-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+
+/* ─── Sessions filter bar spacing ───────────────────────────────────────── */
+#sessions-filter-bar {
+  padding: 6px 12px 0;
+  border-bottom: none;
+}

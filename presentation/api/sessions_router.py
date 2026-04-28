@@ -67,7 +67,7 @@ async def kill_session(session_id: str) -> dict:
     # Mark IDSP inactive so the poller does not double-enforce
     session_store.mock_idsp_set_active(session_id, False)
     # Immediately revoke in our session store (don't wait for next poll cycle)
-    session_store.mark_revoked(session.session_key)
+    session_store.mark_revoked(session.session_key, reason="manual")
 
     await event_bus.publish(
         {
@@ -77,7 +77,12 @@ async def kill_session(session_id: str) -> dict:
                 f"Session killed: {session.username}@{session.target_app} "
                 f"from {session.source_ip} — enforcing LOGOUT now"
             ),
-            "payload": {"session_id": session_id, "username": session.username},
+            "payload": {
+                "session_id": session_id,
+                "username": session.username,
+                "source_ip": session.source_ip,
+                "reason": "manual",
+            },
         }
     )
 
@@ -100,7 +105,11 @@ async def kill_session(session_id: str) -> dict:
                 f"LOGOUT enforced: {ok_count}/{len(results)} system(s) updated "
                 f"for {session.username} ({session.source_ip})"
             ),
-            "payload": None,
+            "payload": {
+                "session_id": session_id,
+                "source_ip": session.source_ip,
+                "reason": "manual",
+            },
         }
     )
 

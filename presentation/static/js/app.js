@@ -124,10 +124,11 @@ function connectSSE() {
     try {
       const event = JSON.parse(e.data);
       appendLog(event);
+      _correlateEventToRow(event);
       handleBoxHighlight(event);
       handleJITRequestCapture(event);
       handleJITCardUpdate(event);
-      if (event.domain === "SESSION") handleSessionEvent();
+      if (event.domain === "SESSION" || event.domain === "WAF") handleSessionEvent();
     } catch (err) {
       console.error("SSE parse error:", err);
     }
@@ -197,9 +198,9 @@ function appendLog(event) {
   } else {
     _renderLogEntry(event, "jit-console", document.getElementById("jit-autoscroll")?.checked ?? true, false);
   }
-  // Mirror SESSION + CONNECTIONS events into the sessions view log
-  if (event.domain === "SESSION" || event.domain === "CONNECTIONS" || event.domain === "JIT") {
-    _renderLogEntry(event, "sessions-console", document.getElementById("sessions-autoscroll")?.checked ?? true, false);
+  // Mirror SESSION + CONNECTIONS + JIT + WAF events into the sessions view log (with payloads)
+  if (event.domain === "SESSION" || event.domain === "CONNECTIONS" || event.domain === "JIT" || event.domain === "WAF") {
+    _renderLogEntry(event, "sessions-console", document.getElementById("sessions-autoscroll")?.checked ?? true, true);
   }
   // Event Stream view receives all events with payloads
   _renderLogEntry(event, "event-stream-console", document.getElementById("es-autoscroll")?.checked ?? true, true);
@@ -220,10 +221,32 @@ function setEventStreamFilter(domain) {
   if (!con) return;
   const all = ["IDSP", "ARIA", "JIT", "WAF", "SESSION", "CONNECTIONS", "SYSTEM"];
   all.forEach(d => con.classList.remove(`filter-${d}`));
-  document.querySelectorAll(".es-filter-pill").forEach(p => p.classList.remove("active"));
+  // Scope pill state to the Event Stream bar only (not sessions filter bar)
+  const bar = document.querySelector(".es-filter-bar:not(#sessions-filter-bar)");
+  if (bar) {
+    bar.querySelectorAll(".es-filter-pill").forEach(p => p.classList.remove("active"));
+    if (domain) con.classList.add(`filter-${domain}`);
+    const active = bar.querySelector(`.es-filter-pill[data-domain="${domain}"]`);
+    if (active) active.classList.add("active");
+  } else {
+    if (domain) con.classList.add(`filter-${domain}`);
+  }
+}
+
+function setSessionsFilter(domain) {
+  const con = document.getElementById("sessions-console");
+  if (!con) return;
+  const all = ["WAF", "JIT", "CONNECTIONS", "SESSION"];
+  all.forEach(d => con.classList.remove(`filter-${d}`));
+  const bar = document.getElementById("sessions-filter-bar");
+  if (bar) bar.querySelectorAll(".es-filter-pill").forEach(p => p.classList.remove("active"));
   if (domain) con.classList.add(`filter-${domain}`);
-  const active = document.querySelector(`.es-filter-pill[data-domain="${domain}"]`);
-  if (active) active.classList.add("active");
+  const pill = bar ? bar.querySelector(`.es-filter-pill[data-domain="${domain}"]`) : null;
+  if (pill) pill.classList.add("active");
+  else if (bar) {
+    const allPill = bar.querySelector(`.es-filter-pill[data-domain=""]`);
+    if (allPill) allPill.classList.add("active");
+  }
 }
 
 function _renderLogEntry(event, outputId, autoScroll, showPayload) {
@@ -262,6 +285,9 @@ function _renderLogEntry(event, outputId, autoScroll, showPayload) {
   msgEl.className = "log-msg";
   msgEl.textContent = message;
   line.appendChild(msgEl);
+
+  _appendWAFChips(line, event);
+  _appendEnforcementChips(line, event);
 
   output.appendChild(line);
 
@@ -341,6 +367,144 @@ function appendSpan(parent, text, cls) {
 
 function appendText(parent, text) {
   parent.appendChild(document.createTextNode(text));
+}
+
+// ─── WAF + Enforcement chip strips ───────────────────────────────────────────
+
+function _makeChip(key, value, cls) {
+  const chip = document.createElement("span");
+  chip.className = `ev-chip ${cls}`;
+  const k = document.createElement("span");
+  k.className = "ev-chip-k";
+  k.textContent = key;
+  const v = document.createElement("span");
+  v.className = "ev-chip-v";
+  v.textContent = String(value);
+  chip.appendChild(k);
+  chip.appendChild(v);
+  return chip;
+}
+
+function _extractXFF(payload) {
+  if (!payload || !Array.isArray(payload.messages)) return null;
+  const ipRe = /\b(\d{1,3}(?:\.\d{1,3}){3})\b/;
+  for (const entry of payload.messages) {
+    if (!entry || !Array.isArray(entry.fields)) continue;
+    for (const f of entry.fields) {
+      if (f && f.name === "srv_req_hdr_x-forwarded-for" && f.content) {
+        const found = String(f.content).match(ipRe);
+        return found ? found[1] : null;
+      }
+    }
+  }
+  return null;
+}
+
+function _appendWAFChips(line, event) {
+  if (event.domain !== "WAF" || !event.payload) return;
+  const p = event.payload;
+  const chips = [];
+  if (p.source_ip)       chips.push(_makeChip("client_ip",       p.source_ip,      "ev-chip-waf"));
+  const xff = _extractXFF(p);
+  if (xff && xff !== p.source_ip) chips.push(_makeChip("x-forwarded-for", xff, "ev-chip-waf"));
+  if (p.attack_type) {
+    const sevCls = (p.severity || "").toLowerCase() === "high" ? "ev-chip-waf sev-high" : "ev-chip-waf";
+    chips.push(_makeChip("attack", p.attack_type, sevCls));
+  }
+  if (p.rule_id)         chips.push(_makeChip("rule",       p.rule_id,         "ev-chip-waf"));
+  if (p.severity)        chips.push(_makeChip("severity",   p.severity.toUpperCase(), "ev-chip-waf"));
+  if (p.virtual_service) chips.push(_makeChip("vs",         p.virtual_service, "ev-chip-waf"));
+  if (p.pool_name)       chips.push(_makeChip("pool",       p.pool_name,       "ev-chip-waf"));
+  if (p.request_id)      chips.push(_makeChip("req_id",     p.request_id,      "ev-chip-waf"));
+  if (chips.length === 0) return;
+  const strip = document.createElement("div");
+  strip.className = "ev-chip-strip";
+  chips.forEach(c => strip.appendChild(c));
+  line.appendChild(strip);
+}
+
+function _appendEnforcementChips(line, event) {
+  const chips = [];
+  if (event.domain === "JIT" && event.level === "PAYLOAD" && event.payload) {
+    const p = event.payload;
+    if (p.system) chips.push(_makeChip("system", p.system, "ev-chip-jit"));
+    if (p.method) chips.push(_makeChip("method", p.method, "ev-chip-jit"));
+    if (p.url) {
+      try {
+        const host = new URL(p.url).host;
+        chips.push(_makeChip("host", host, "ev-chip-jit"));
+      } catch (_) {}
+    }
+  } else if (event.domain === "CONNECTIONS" && event.payload && (event.level === "SUCCESS" || event.level === "ERROR")) {
+    const msg = event.message || "";
+    // Extract HTTP status code from "{system} → verb (HTTP 200)"
+    const httpFound = msg.match(/\(HTTP (\d+)\)/);
+    if (httpFound) {
+      const chipCls = event.level === "SUCCESS" ? "ev-chip-conn ev-chip-ok" : "ev-chip-conn ev-chip-err";
+      chips.push(_makeChip("http", httpFound[1], chipCls));
+    }
+    // Extract system name: text before " →" or " failed"
+    const sysFound = msg.match(/^([^→]+?)(?:\s*→|\s+failed)/);
+    if (sysFound) chips.push(_makeChip("system", sysFound[1].trim(), "ev-chip-conn"));
+  }
+  if (chips.length === 0) return;
+  const strip = document.createElement("div");
+  strip.className = "ev-chip-strip";
+  chips.forEach(c => strip.appendChild(c));
+  line.appendChild(strip);
+}
+
+// ─── Row ↔ SSE event correlation ─────────────────────────────────────────────
+
+const _sessionRevocationReasons = new Map(); // session_id → reason
+const _sessionXFFCache = new Map();           // session_id → xff ip
+
+function _correlateEventToRow(event) {
+  if (!event.payload) return;
+  const p = event.payload;
+  const ids  = new Set();
+  const ips  = new Set();
+  const keys = new Set();
+  if (p.session_id)              ids.add(p.session_id);
+  if (p.source_ip)               ips.add(p.source_ip);
+  if (Array.isArray(p.sessions)) p.sessions.forEach(k => keys.add(k));
+  // Cache revocation reason for sub-second badge updates
+  if (p.reason && p.session_id) _sessionRevocationReasons.set(p.session_id, p.reason);
+  // Cache XFF for WAF events
+  if (event.domain === "WAF" && p.source_ip && Array.isArray(p.sessions)) {
+    const xff = _extractXFF(p);
+    if (xff && xff !== p.source_ip) {
+      p.sessions.forEach(sk => {
+        const sess = (_lastSessionsList || []).find(s => `${s.username}:${s.target_app}:${s.source_ip}` === sk);
+        if (sess) _sessionXFFCache.set(sess.session_id, xff);
+      });
+    }
+  }
+  // Map session_keys back to session_ids via _lastSessionsList
+  if (keys.size > 0 && Array.isArray(_lastSessionsList)) {
+    _lastSessionsList.forEach(s => {
+      const sk = `${s.username}:${s.target_app}:${s.source_ip}`;
+      if (keys.has(sk)) ids.add(s.session_id);
+    });
+  }
+  // Match by source_ip
+  if (ips.size > 0 && Array.isArray(_lastSessionsList)) {
+    _lastSessionsList.forEach(s => { if (ips.has(s.source_ip)) ids.add(s.session_id); });
+  }
+  if (ids.size === 0) return;
+  const lvl = event.level || "INFO";
+  const pulseClass = lvl === "SUCCESS" ? "row-pulse-success"
+                   : lvl === "ERROR"   ? "row-pulse-error"
+                   : lvl === "WARN"    ? "row-pulse-warn"
+                   : "row-pulse-info";
+  ids.forEach(id => {
+    const tr = document.querySelector(`#sessions-tbody tr[data-session-id="${id}"]`);
+    if (!tr) return;
+    tr.classList.remove("row-pulse-success", "row-pulse-error", "row-pulse-warn", "row-pulse-info");
+    void tr.offsetWidth;
+    tr.classList.add(pulseClass);
+    setTimeout(() => tr.classList.remove(pulseClass), 1500);
+  });
 }
 
 function clearConsole() {
@@ -1537,6 +1701,10 @@ async function refreshSessions() {
   } catch (_) {}
 }
 
+function _clearElement(el) {
+  while (el.firstChild) el.removeChild(el.firstChild);
+}
+
 function _renderSessionsTable(sessions) {
   const tbody = document.getElementById("sessions-tbody");
   const countEl = document.getElementById("sessions-count");
@@ -1545,28 +1713,96 @@ function _renderSessionsTable(sessions) {
   const active = sessions.filter(s => s.status === "active").length;
   if (countEl) countEl.textContent = `${active} active`;
 
+  _clearElement(tbody);
+
   if (sessions.length === 0) {
-    tbody.innerHTML = `<tr class="sessions-empty"><td colspan="7">No sessions yet — submit a LOGIN event to register one.</td></tr>`;
+    const emptyRow = document.createElement("tr");
+    emptyRow.className = "sessions-empty";
+    const emptyCell = document.createElement("td");
+    emptyCell.colSpan = 7;
+    emptyCell.textContent = "No sessions yet — submit a LOGIN event to register one.";
+    emptyRow.appendChild(emptyCell);
+    tbody.appendChild(emptyRow);
     return;
   }
 
-  tbody.innerHTML = sessions.map(s => {
-    const elapsed = _formatElapsed(s.elapsed_seconds);
-    const badgeClass = `session-badge session-badge-${s.status}`;
-    const isKillable = s.status === "active";
-    const killBtn = isKillable
-      ? `<button class="btn-kill" onclick="killSession('${s.session_id}')">Kill</button>`
-      : `<button class="btn-kill" disabled>Kill</button>`;
-    return `<tr>
-      <td>${_esc(s.username)}</td>
-      <td>${_esc(s.target_app)}</td>
-      <td class="mono">${_esc(s.source_ip)}</td>
-      <td><span class="${badgeClass}">${s.status}</span></td>
-      <td>${elapsed}</td>
-      <td class="muted-sm">${_esc(s.source)}</td>
-      <td>${killBtn}</td>
-    </tr>`;
-  }).join("");
+  const now = Date.now();
+
+  sessions.forEach(s => {
+    const tr = document.createElement("tr");
+    tr.dataset.sessionId = s.session_id;
+
+    // User
+    const tdUser = document.createElement("td");
+    tdUser.textContent = s.username;
+    tr.appendChild(tdUser);
+
+    // App
+    const tdApp = document.createElement("td");
+    tdApp.textContent = s.target_app;
+    tr.appendChild(tdApp);
+
+    // Source IP + verified-ago + XFF
+    const tdIp = document.createElement("td");
+    tdIp.className = "mono";
+    tdIp.textContent = s.source_ip;
+    if (s.last_checked) {
+      const freshEl = document.createElement("span");
+      freshEl.className = "session-fresh";
+      const ago = (now - new Date(s.last_checked).getTime()) / 1000;
+      freshEl.textContent = `verified ${_formatElapsed(Math.max(0, ago))} ago`;
+      tdIp.appendChild(freshEl);
+    }
+    const xff = _sessionXFFCache.get(s.session_id);
+    if (xff && s.revocation_reason === "waf-block") {
+      const xffEl = document.createElement("span");
+      xffEl.className = "session-xff";
+      xffEl.textContent = `xff: ${xff}`;
+      tdIp.appendChild(xffEl);
+    }
+    tr.appendChild(tdIp);
+
+    // Status badge + cause pill
+    const tdStatus = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = `session-badge session-badge-${s.status}`;
+    badge.textContent = s.status;
+    tdStatus.appendChild(badge);
+    // Server reason takes precedence; fall back to client-side cache for sub-second UX
+    const reason = s.revocation_reason || _sessionRevocationReasons.get(s.session_id);
+    if (reason && s.status === "revoked") {
+      const labelMap = { "waf-block": "WAF", "manual": "MANUAL", "idsp-poll": "IDSP", "ttl": "TTL" };
+      const label = labelMap[reason] || reason.toUpperCase();
+      const pill = document.createElement("span");
+      pill.className = `session-cause session-cause-${reason.replace(/-/g, "")}`;
+      pill.textContent = label;
+      tdStatus.appendChild(pill);
+    }
+    tr.appendChild(tdStatus);
+
+    // Elapsed
+    const tdElapsed = document.createElement("td");
+    tdElapsed.textContent = _formatElapsed(s.elapsed_seconds);
+    tr.appendChild(tdElapsed);
+
+    // Source
+    const tdSource = document.createElement("td");
+    tdSource.className = "muted-sm";
+    tdSource.textContent = s.source;
+    tr.appendChild(tdSource);
+
+    // Kill button
+    const tdKill = document.createElement("td");
+    const btn = document.createElement("button");
+    btn.className = "btn-kill";
+    btn.textContent = "Kill";
+    btn.disabled = s.status !== "active";
+    btn.addEventListener("click", () => killSession(s.session_id, tr));
+    tdKill.appendChild(btn);
+    tr.appendChild(tdKill);
+
+    tbody.appendChild(tr);
+  });
 }
 
 function _formatElapsed(secs) {
@@ -1580,11 +1816,33 @@ function _esc(str) {
   return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-async function killSession(sessionId) {
+async function killSession(sessionId, trEl) {
   try {
     const res = await fetch(`/sessions/${sessionId}/kill`, { method: "POST" });
-    if (res.ok) refreshSessions();
-  } catch (_) {}
+    if (!res.ok) { refreshSessions(); return; }
+    const data = await res.json();
+    refreshSessions();
+    // Render inline per-system enforcement result strip
+    if (trEl && Array.isArray(data.enforcement) && data.enforcement.length > 0) {
+      const confirmRow = document.createElement("tr");
+      confirmRow.className = "kill-confirm-row";
+      const confirmCell = document.createElement("td");
+      confirmCell.colSpan = 7;
+      const strip = document.createElement("div");
+      strip.className = "kill-confirm-strip";
+      data.enforcement.forEach(r => {
+        if (r.system) strip.appendChild(_makeChip("system", r.system, "ev-chip-conn"));
+        const ok = r.success === true;
+        const statusLabel = r.status_code ? String(r.status_code) : (ok ? "ok" : "fail");
+        strip.appendChild(_makeChip("result", statusLabel, ok ? "ev-chip-conn ev-chip-ok" : "ev-chip-conn ev-chip-err"));
+      });
+      confirmCell.appendChild(strip);
+      confirmRow.appendChild(confirmCell);
+      if (trEl.nextSibling) trEl.parentNode.insertBefore(confirmRow, trEl.nextSibling);
+      else trEl.parentNode.appendChild(confirmRow);
+      setTimeout(() => { if (confirmRow.parentNode) confirmRow.parentNode.removeChild(confirmRow); }, 4000);
+    }
+  } catch (_) { refreshSessions(); }
 }
 
 // ─── Sessions auto-refresh ────────────────────────────────────────────────────

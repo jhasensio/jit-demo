@@ -66,7 +66,7 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
     details = []
     for s in sessions:
         session_store.mock_idsp_set_active(s.session_id, False)
-        if session_store.mark_revoked(s.session_key) is None:
+        if session_store.mark_revoked(s.session_key, reason="waf-block") is None:
             continue  # idempotency: already revoked between lookup and now
         results = await execute_live_enforcement(
             username=s.username,
@@ -89,7 +89,11 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
                 f"WAF revoked {len(details)} session(s) for {payload.source_ip} "
                 f"— enforcement {ok_count}/{total_enforcements} system(s) updated"
             ),
-            "payload": {"sessions": [d["session_key"] for d in details]},
+            "payload": {
+                "sessions": [d["session_key"] for d in details],
+                "source_ip": payload.source_ip,
+                "reason": "waf-block",
+            },
         }
     )
 

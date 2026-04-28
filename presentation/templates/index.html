@@ -836,8 +836,16 @@
           </div>
 
           <div class="panel panel-flex panel-sessions-log">
+            <div class="es-filter-bar" id="sessions-filter-bar">
+              <span class="es-filter-label">FILTER</span>
+              <button class="es-filter-pill active" data-domain="" onclick="setSessionsFilter('')">ALL</button>
+              <button class="es-filter-pill" data-domain="WAF" onclick="setSessionsFilter('WAF')">WAF</button>
+              <button class="es-filter-pill" data-domain="JIT" onclick="setSessionsFilter('JIT')">JIT</button>
+              <button class="es-filter-pill" data-domain="CONNECTIONS" onclick="setSessionsFilter('CONNECTIONS')">CONNECTIONS</button>
+              <button class="es-filter-pill" data-domain="SESSION" onclick="setSessionsFilter('SESSION')">SESSION</button>
+            </div>
             <div class="panel-hd">
-              Enforcement Events
+              Correlated Events
               <div class="panel-hd-actions">
                 <label class="autoscroll-label">
                   <input type="checkbox" id="sessions-autoscroll" checked /> Auto-scroll

@@ -7,6 +7,7 @@ class SessionStore:
     def __init__(self) -> None:
         self._sessions: dict[str, Session] = {}       # keyed by session_key
         self._mock_idsp_active: dict[str, bool] = {}  # keyed by session_id
+        self._revocation_reasons: dict[str, str] = {} # keyed by session_key
         self._settings = SessionSettings()
 
     # ── Session CRUD ─────────────────────────────────────────────────────────
@@ -43,22 +44,25 @@ class SessionStore:
     def get_all(self) -> list[Session]:
         return list(self._sessions.values())
 
-    def mark_expired(self, session_key: str) -> "Session | None":
+    def mark_expired(self, session_key: str, reason: str = "ttl") -> "Session | None":
         """Mark session as expired. Returns None if session is already non-active (guard)."""
         session = self._sessions.get(session_key)
         if session is None or session.status != "active":
             return None
         session.status = "expired"
         self._mock_idsp_active[session.session_id] = False
+        self._revocation_reasons[session_key] = reason
         return session
 
-    def mark_revoked(self, session_key: str) -> "Session | None":
+    def mark_revoked(self, session_key: str, reason: str | None = None) -> "Session | None":
         """Mark session as revoked. Returns None if session is already non-active (guard)."""
         session = self._sessions.get(session_key)
         if session is None or session.status != "active":
             return None
         session.status = "revoked"
         self._mock_idsp_active[session.session_id] = False
+        if reason:
+            self._revocation_reasons[session_key] = reason
         return session
 
     # ── Mock IDSP state ───────────────────────────────────────────────────────
@@ -89,6 +93,8 @@ class SessionStore:
             elapsed_seconds=round(session.elapsed_seconds(), 1),
             login_timestamp=session.login_timestamp.isoformat(),
             source=session.source,
+            last_checked=session.last_checked.isoformat() if session.last_checked else None,
+            revocation_reason=self._revocation_reasons.get(session.session_key),
         )
 
 

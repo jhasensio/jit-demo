@@ -39,3 +39,5 @@ class SessionSummary(BaseModel):
     elapsed_seconds: float
     login_timestamp: str
     source: str
+    last_checked: str | None = None
+    revocation_reason: str | None = None
