@@ -27,7 +27,7 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
         }
     )
 
-    sessions = session_store.get_by_source_ip(payload.client_ip)
+    sessions = session_store.get_by_source_ip(payload.source_ip)
     if payload.target_app:
         sessions = [s for s in sessions if s.target_app == payload.target_app]
 
@@ -36,7 +36,7 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
             {
                 "level": "WARN",
                 "domain": "WAF",
-                "message": f"No active session found for {payload.client_ip}",
+                "message": f"No active session found for {payload.source_ip}",
                 "payload": None,
             }
         )
@@ -70,7 +70,7 @@ async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
             "level": level,
             "domain": "WAF",
             "message": (
-                f"WAF revoked {len(details)} session(s) for {payload.client_ip} "
+                f"WAF revoked {len(details)} session(s) for {payload.source_ip} "
                 f"— enforcement {ok_count}/{total_enforcements} system(s) updated"
             ),
             "payload": {"sessions": [d["session_key"] for d in details]},

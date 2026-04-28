@@ -2,10 +2,13 @@
 
 // ─── Domain → Mini-diagram highlight map ─────────────────────────────────────
 const DOMAIN_BOX_MAP = {
-  IDSP:   { boxes: ["md-idsp"], arrows: [] },
-  ARIA:   { boxes: ["md-aria"], arrows: [] },
-  JIT:    { boxes: ["md-jit"],  arrows: [] },
-  SYSTEM: { boxes: [],          arrows: [] },
+  IDSP:        { boxes: ["md-idsp"], arrows: [] },
+  ARIA:        { boxes: ["md-aria"], arrows: [] },
+  JIT:         { boxes: ["md-jit"],  arrows: [] },
+  WAF:         { boxes: [],          arrows: [] },
+  SYSTEM:      { boxes: [],          arrows: [] },
+  SESSION:     { boxes: [],          arrows: [] },
+  CONNECTIONS: { boxes: [],          arrows: [] },
 };
 
 const JIT_ENFORCEMENT_MAP = [
@@ -25,8 +28,8 @@ const MINI_DIAGRAM_STEPS = {
 };
 
 // Allowlists (prevent class injection)
-const VALID_LEVELS  = new Set(["INFO", "SUCCESS", "ERROR", "PAYLOAD", "DOMAIN"]);
-const VALID_DOMAINS = new Set(["IDSP", "ARIA", "JIT", "SYSTEM", "CONNECTIONS", "SESSION"]);
+const VALID_LEVELS  = new Set(["INFO", "SUCCESS", "ERROR", "PAYLOAD", "DOMAIN", "WARN"]);
+const VALID_DOMAINS = new Set(["IDSP", "ARIA", "JIT", "SYSTEM", "CONNECTIONS", "SESSION", "WAF"]);
 
 // Enforcement card config (order matches JITService output)
 const ENFORCEMENT_CARDS = [
@@ -38,6 +41,7 @@ let sseSource        = null;
 let reconnectTimer   = null;
 let logCount         = 0;
 let jitLogCount      = 0;
+let _globalLogSeq    = 0;   // unique ID seed across all consoles
 let _lastJITRequest  = null;   // last request received via SSE (external curl or form submit)
 const RECONNECT_DELAY = 3000;
 
@@ -47,6 +51,7 @@ const VIEW_HOOKS = {
   "active-sessions":  () => { refreshSessions(); startSessionsAutoRefresh(); },
   "avi-policy":       () => loadAviPolicyView(),
   "nsx-policy":       () => loadNsxPolicyView(),
+  "event-stream":     () => setEventStreamFilter(""),
 };
 
 // Parent toggle: items with data-toggle collapse/expand their sub-menu
@@ -196,11 +201,29 @@ function appendLog(event) {
   if (event.domain === "SESSION" || event.domain === "CONNECTIONS" || event.domain === "JIT") {
     _renderLogEntry(event, "sessions-console", document.getElementById("sessions-autoscroll")?.checked ?? true, false);
   }
+  // Event Stream view receives all events with payloads
+  _renderLogEntry(event, "event-stream-console", document.getElementById("es-autoscroll")?.checked ?? true, true);
 }
 
 function clearSessionsLog() {
   const el = document.getElementById("sessions-console");
   if (el) el.textContent = "";
+}
+
+function clearEventStreamConsole() {
+  const el = document.getElementById("event-stream-console");
+  if (el) el.textContent = "";
+}
+
+function setEventStreamFilter(domain) {
+  const con = document.getElementById("event-stream-console");
+  if (!con) return;
+  const all = ["IDSP", "ARIA", "JIT", "WAF", "SESSION", "CONNECTIONS", "SYSTEM"];
+  all.forEach(d => con.classList.remove(`filter-${d}`));
+  document.querySelectorAll(".es-filter-pill").forEach(p => p.classList.remove("active"));
+  if (domain) con.classList.add(`filter-${domain}`);
+  const active = document.querySelector(`.es-filter-pill[data-domain="${domain}"]`);
+  if (active) active.classList.add("active");
 }
 
 function _renderLogEntry(event, outputId, autoScroll, showPayload) {
@@ -212,7 +235,9 @@ function _renderLogEntry(event, outputId, autoScroll, showPayload) {
   const message = typeof event.message === "string" ? event.message : "";
   const ts      = formatTimestamp(event.timestamp);
 
-  const idBase = outputId === "console-output" ? `pl-${logCount++}` : `jpl-${jitLogCount++}`;
+  const idBase = `lg-${_globalLogSeq++}`;
+  if (outputId === "console-output") logCount++;
+  else if (outputId !== "event-stream-console" && outputId !== "sessions-console") jitLogCount++;
 
   const line = document.createElement("div");
   line.className = "log-line";

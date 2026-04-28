@@ -49,6 +49,11 @@
       <div class="sb-section">Live</div>
       <div class="sb-group">
 
+        <button class="sb-item sb-item--child" data-view="event-stream">
+          <span class="sb-icon">&#9678;</span>
+          <span class="sb-label">Event Stream</span>
+        </button>
+
         <button class="sb-item sb-item--child" data-view="settings">
           <span class="sb-icon">&#9881;</span>
           <span class="sb-label">Settings</span>
@@ -1013,6 +1018,41 @@
 
       </div><!-- /avi-policy-stacked -->
     </div><!-- /view-nsx-policy -->
+
+    <!-- ── View: Event Stream ────────────────────────────────────────────────── -->
+    <div id="view-event-stream" class="view">
+
+      <div class="es-page-header">
+        <div>
+          <h2>Event Stream <span class="dim">— Live SSE Feed</span></h2>
+          <p>Real-time feed of all security events: WAF detections, JIT enforcement, session lifecycle, and connections.</p>
+        </div>
+      </div>
+
+      <div class="es-body">
+        <div class="panel panel-flex">
+          <div class="panel-hd">
+            <div class="es-filter-bar">
+              <span class="es-filter-label">Domain:</span>
+              <button class="es-filter-pill active" data-domain="" onclick="setEventStreamFilter('')">ALL</button>
+              <button class="es-filter-pill" data-domain="WAF" onclick="setEventStreamFilter('WAF')">WAF</button>
+              <button class="es-filter-pill" data-domain="JIT" onclick="setEventStreamFilter('JIT')">JIT</button>
+              <button class="es-filter-pill" data-domain="SESSION" onclick="setEventStreamFilter('SESSION')">SESSION</button>
+              <button class="es-filter-pill" data-domain="IDSP" onclick="setEventStreamFilter('IDSP')">IDSP</button>
+              <button class="es-filter-pill" data-domain="ARIA" onclick="setEventStreamFilter('ARIA')">ARIA</button>
+              <button class="es-filter-pill" data-domain="CONNECTIONS" onclick="setEventStreamFilter('CONNECTIONS')">CONN</button>
+              <button class="es-filter-pill" data-domain="SYSTEM" onclick="setEventStreamFilter('SYSTEM')">SYSTEM</button>
+            </div>
+            <div class="console-controls">
+              <label><input type="checkbox" id="es-autoscroll" checked /> Auto-scroll</label>
+              <button class="btn-clear" onclick="clearEventStreamConsole()">Clear</button>
+            </div>
+          </div>
+          <div id="event-stream-console" class="es-console"></div>
+        </div>
+      </div>
+
+    </div><!-- /view-event-stream -->
 
   </div><!-- /content -->
 

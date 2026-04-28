@@ -647,12 +647,15 @@ header h1 {
 .badge-INFO    { background: #0a253d; color: #40c4ff; }
 .badge-SUCCESS { background: #0a2318; color: #00e676; }
 .badge-ERROR   { background: #2a0a0a; color: #ff5252; }
+.badge-WARN    { background: #2a1500; color: #ffa040; }
 .badge-PAYLOAD { background: #281e06; color: #ffd740; }
 .badge-DOMAIN  { background: #1a0a2a; color: #e040fb; }
 
 .domain-IDSP        { color: #c9b3ff; }
 .domain-ARIA        { color: #40c4ff; }
 .domain-JIT         { color: #00e676; }
+.domain-WAF         { color: #ff6b35; }
+.domain-SESSION     { color: #e040fb; }
 .domain-SYSTEM      { color: #5a7898; }
 .domain-CONNECTIONS { color: #40c4ff; }
 
@@ -3591,3 +3594,89 @@ header h1 {
 @media (max-width: 900px) {
   .sessions-split { grid-template-columns: 1fr; }
 }
+
+/* ─── Event Stream view ──────────────────────────────────────────────────────── */
+.es-page-header {
+  padding: var(--space-4) var(--space-6) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+.es-page-header h2 { margin: 0; font-size: var(--text-xl); font-weight: 600; color: var(--text-primary); }
+.es-page-header p  { margin: var(--space-1) 0 0; font-size: var(--text-sm); color: var(--text-muted); }
+
+.es-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+}
+.es-body .panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.es-body .panel-hd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.es-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.es-filter-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-right: 2px;
+  white-space: nowrap;
+}
+.es-filter-pill {
+  padding: 2px 9px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  font-family: var(--font-mono);
+}
+.es-filter-pill:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.es-filter-pill.active { border-color: var(--text-secondary); color: var(--text-primary); background: var(--surface-2, rgba(255,255,255,0.05)); }
+.es-filter-pill[data-domain="WAF"].active   { border-color: #ff6b35; color: #ff6b35; background: rgba(255,107,53,0.08); }
+.es-filter-pill[data-domain="JIT"].active   { border-color: #00e676; color: #00e676; background: rgba(0,230,118,0.08); }
+.es-filter-pill[data-domain="SESSION"].active { border-color: #e040fb; color: #e040fb; background: rgba(224,64,251,0.08); }
+.es-filter-pill[data-domain="IDSP"].active  { border-color: #c9b3ff; color: #c9b3ff; background: rgba(201,179,255,0.08); }
+.es-filter-pill[data-domain="ARIA"].active  { border-color: #40c4ff; color: #40c4ff; background: rgba(64,196,255,0.08); }
+.es-filter-pill[data-domain="CONNECTIONS"].active { border-color: #40c4ff; color: #40c4ff; background: rgba(64,196,255,0.08); }
+.es-filter-pill[data-domain="SYSTEM"].active { border-color: #5a7898; color: #5a7898; background: rgba(90,120,152,0.08); }
+
+.es-console {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 8px;
+  background: var(--bg-terminal, #0d1117);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  border-radius: 0 0 var(--radius, 4px) var(--radius, 4px);
+}
+
+/* Event Stream domain filters */
+#event-stream-console.filter-WAF         .log-line:not([data-domain="WAF"])         { opacity: 0.12; }
+#event-stream-console.filter-JIT         .log-line:not([data-domain="JIT"])         { opacity: 0.12; }
+#event-stream-console.filter-SESSION     .log-line:not([data-domain="SESSION"])     { opacity: 0.12; }
+#event-stream-console.filter-IDSP        .log-line:not([data-domain="IDSP"])        { opacity: 0.12; }
+#event-stream-console.filter-ARIA        .log-line:not([data-domain="ARIA"])        { opacity: 0.12; }
+#event-stream-console.filter-CONNECTIONS .log-line:not([data-domain="CONNECTIONS"]) { opacity: 0.12; }
+#event-stream-console.filter-SYSTEM      .log-line:not([data-domain="SYSTEM"])      { opacity: 0.12; }
