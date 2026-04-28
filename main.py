@@ -22,6 +22,7 @@ from presentation.api.demo_router import router as demo_router
 from presentation.api.idsp_router import router as idsp_router
 from presentation.api.jit_router import router as jit_router
 from presentation.api.sessions_router import router as sessions_router
+from presentation.api.waf_router import router as waf_router
 
 
 @asynccontextmanager
@@ -50,6 +51,7 @@ app.include_router(jit_router)
 app.include_router(connections_router)
 app.include_router(demo_router)
 app.include_router(sessions_router)
+app.include_router(waf_router)
 app.include_router(avi_policy_router)
 app.include_router(nsx_policy_router)
 app.include_router(target_app_router)

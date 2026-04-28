@@ -37,6 +37,9 @@ class SessionStore:
     def get_active(self) -> list[Session]:
         return [s for s in self._sessions.values() if s.status == "active"]
 
+    def get_by_source_ip(self, ip: str) -> list[Session]:
+        return [s for s in self.get_active() if s.source_ip == ip]
+
     def get_all(self) -> list[Session]:
         return list(self._sessions.values())
 
