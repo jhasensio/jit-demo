@@ -3580,19 +3580,24 @@ header h1 {
 
 /* ─── Active Sessions split layout ──────────────────────────────────────────── */
 .sessions-split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .panel-sessions-log .console-output {
-  min-height: 260px;
-  max-height: 420px;
-}
-
-@media (max-width: 900px) {
-  .sessions-split { grid-template-columns: 1fr; }
+  background: var(--bg-terminal);
+  border: 1px solid var(--box-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  overflow-y: auto;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.65;
+  color: var(--text-terminal);
+  min-height: 280px;
+  max-height: 520px;
 }
 
 /* ─── Event Stream view ──────────────────────────────────────────────────────── */
