@@ -2908,6 +2908,7 @@ async function _doAviOnboarding(pending, ruleEdits) {
 
     setStatus("");
     showToast(`${appName} onboarded — policy '${policyName}' created and attached to ${vsName}.`, "success");
+    fetch(`/sessions/by-app/${encodeURIComponent(appName)}`, { method: "DELETE" }).catch(() => {});
     document.getElementById("avi-onboard-form")?.reset();
     document.getElementById("avi-onboard-derived-wrap").style.display = "none";
     await Promise.all([refreshAviPolicies(), refreshAviIpAddrGroups(), refreshAviVirtualServices()]);
@@ -2983,6 +2984,7 @@ async function refreshMappings() {
         <td class="btn-nowrap">
           <button class="btn-small btn-secondary" onclick="viewActiveIPs('${_esc(r.ipaddrgroup_ref || "")}','${_esc(r.ipaddrgroup_name || "")}')">View IPs</button>
           <button class="btn-small btn-secondary" onclick="syncMapping(${r.id},'${_esc(r.vs_uuid)}','${_esc(r.policy_uuid)}','${_esc(r.ipaddrgroup_ref || "")}')">Sync</button>
+          <button class="btn-small btn-secondary" onclick="purgeSessionsForApp('${_esc(r.target_app)}')">Purge Sessions</button>
         </td>
       </tr>`;
     }).join("");
@@ -3111,6 +3113,17 @@ async function deleteMapping(id) {
     await fetch(`/avi-policy/mappings/${id}`, { method: "DELETE" });
     await refreshMappings();
   } catch (_) {}
+}
+
+async function purgeSessionsForApp(targetApp) {
+  try {
+    const res = await fetch(`/sessions/by-app/${encodeURIComponent(targetApp)}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    const count = data.purged ?? 0;
+    showToast(`Purged ${count} session record(s) for ${targetApp}`, count > 0 ? "success" : "info");
+  } catch (_) {
+    showToast("Failed to purge sessions", "error");
+  }
 }
 
 // ─── vDefend (NSX) Policy view ────────────────────────────────────────────────
