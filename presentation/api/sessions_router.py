@@ -54,6 +54,39 @@ async def update_settings(settings: SessionSettings) -> SessionSettings:
     return settings
 
 
+@router.delete("/by-app/{target_app}")
+async def purge_sessions_by_app(target_app: str) -> dict:
+    """Hard-remove all session records for a target app (no enforcement). Used after onboarding."""
+    count = session_store.delete_by_target_app(target_app)
+    await event_bus.publish(
+        {
+            "level": "INFO",
+            "domain": "SESSION",
+            "message": f"Purged {count} session record(s) for {target_app}",
+            "payload": {"target_app": target_app, "purged": count},
+        }
+    )
+    return {"status": "purged", "target_app": target_app, "purged": count}
+
+
+@router.delete("/{session_id}")
+async def delete_session(session_id: str) -> dict:
+    """Hard-remove a single session record from the store (no enforcement)."""
+    session = session_store.get_by_id(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    session_store.delete(session.session_key)
+    await event_bus.publish(
+        {
+            "level": "INFO",
+            "domain": "SESSION",
+            "message": f"Session removed: {session.username}@{session.target_app} ({session.source_ip})",
+            "payload": {"session_id": session_id, "reason": "manual-remove"},
+        }
+    )
+    return {"status": "removed", "session_id": session_id}
+
+
 @router.post("/{session_id}/kill")
 async def kill_session(session_id: str) -> dict:
     """

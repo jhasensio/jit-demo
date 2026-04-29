@@ -1791,14 +1791,22 @@ function _renderSessionsTable(sessions) {
     tdSource.textContent = s.source;
     tr.appendChild(tdSource);
 
-    // Kill button
+    // Kill (active) / Remove (inactive)
     const tdKill = document.createElement("td");
-    const btn = document.createElement("button");
-    btn.className = "btn-kill";
-    btn.textContent = "Kill";
-    btn.disabled = s.status !== "active";
-    btn.addEventListener("click", () => killSession(s.session_id, tr));
-    tdKill.appendChild(btn);
+    if (s.status === "active") {
+      const btn = document.createElement("button");
+      btn.className = "btn-kill";
+      btn.textContent = "Kill";
+      btn.addEventListener("click", () => killSession(s.session_id, tr));
+      tdKill.appendChild(btn);
+    } else {
+      const btn = document.createElement("button");
+      btn.className = "btn-remove";
+      btn.textContent = "×";
+      btn.title = "Remove session record";
+      btn.addEventListener("click", () => removeSession(s.session_id, tr));
+      tdKill.appendChild(btn);
+    }
     tr.appendChild(tdKill);
 
     tbody.appendChild(tr);
@@ -1842,6 +1850,14 @@ async function killSession(sessionId, trEl) {
       else trEl.parentNode.appendChild(confirmRow);
       setTimeout(() => { if (confirmRow.parentNode) confirmRow.parentNode.removeChild(confirmRow); }, 4000);
     }
+  } catch (_) { refreshSessions(); }
+}
+
+async function removeSession(sessionId, trEl) {
+  try {
+    const res = await fetch(`/sessions/${sessionId}`, { method: "DELETE" });
+    if (res.ok && trEl?.parentNode) trEl.parentNode.removeChild(trEl);
+    refreshSessions();
   } catch (_) { refreshSessions(); }
 }
 
@@ -3267,6 +3283,8 @@ async function onboardTargetApp(e) {
     refreshNsxGroups();
     document.getElementById("nsx-onboard-form")?.reset();
     showToast(`${targetApp} onboarded — 3 security groups created.`, "success");
+    // Purge stale session records for this app
+    fetch(`/sessions/by-app/${encodeURIComponent(targetApp)}`, { method: "DELETE" }).catch(() => {});
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Create"; }
   }

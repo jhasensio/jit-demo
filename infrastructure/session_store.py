@@ -65,6 +65,22 @@ class SessionStore:
             self._revocation_reasons[session_key] = reason
         return session
 
+    def delete(self, session_key: str) -> bool:
+        """Hard-remove a session record. Returns True if it existed."""
+        session = self._sessions.pop(session_key, None)
+        if session is None:
+            return False
+        self._mock_idsp_active.pop(session.session_id, None)
+        self._revocation_reasons.pop(session_key, None)
+        return True
+
+    def delete_by_target_app(self, target_app: str) -> int:
+        """Hard-remove all sessions for a given target_app. Returns count removed."""
+        keys = [k for k, s in self._sessions.items() if s.target_app == target_app]
+        for key in keys:
+            self.delete(key)
+        return len(keys)
+
     # ── Mock IDSP state ───────────────────────────────────────────────────────
 
     def mock_idsp_is_active(self, session_id: str) -> bool:
