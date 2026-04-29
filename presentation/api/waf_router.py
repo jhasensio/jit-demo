@@ -9,8 +9,17 @@ Log Insight's default webhook payload carries no source_ip at the top level.
 To include it, configure a custom webhook template in Log Insight and add:
   "source_ip": "{{source_ip}}"
 If absent, the endpoint attempts to extract the IP from the 'messages' entries.
+
+NOTE on Log Insight template quirks:
+  "${messages}" (quoted in the template) embeds the JSON array inline, producing
+  unescaped inner quotes that make the body invalid JSON.  The endpoint reads the
+  raw body, strips trailing commas, and falls back to an empty dict on parse
+  failure rather than returning 422.
 """
-from fastapi import APIRouter
+import json
+import re as _re
+
+from fastapi import APIRouter, Request
 
 from core.logger import event_bus
 from domain.waf.models import WAFRevokeResult, WAFWebhookPayload
@@ -22,7 +31,17 @@ router = APIRouter(prefix="/waf", tags=["WAF"])
 
 
 @router.post("/webhook", response_model=WAFRevokeResult)
-async def waf_webhook(payload: WAFWebhookPayload) -> WAFRevokeResult:
+async def waf_webhook(request: Request) -> WAFRevokeResult:
+    # Parse raw body to survive Log Insight template artifacts:
+    # trailing commas before } or ] and unescaped ${messages} substitution.
+    body = await request.body()
+    text = body.decode("utf-8", errors="replace")
+    text = _re.sub(r",\s*([}\]])", r"\1", text)   # strip trailing commas
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        data = {}
+    payload = WAFWebhookPayload.model_validate(data)
     await event_bus.publish(
         {
             "level": "INFO",
