@@ -11,10 +11,11 @@ To include it, configure a custom webhook template in Log Insight and add:
 If absent, the endpoint attempts to extract the IP from the 'messages' entries.
 
 NOTE on Log Insight template quirks:
-  "${messages}" (quoted in the template) embeds the JSON array inline, producing
-  unescaped inner quotes that make the body invalid JSON.  The endpoint reads the
-  raw body, strips trailing commas, and falls back to an empty dict on parse
-  failure rather than returning 422.
+  "${messages}" (quoted in the template) substitutes the JSON array verbatim
+  inside a JSON string value — inner double-quotes are not escaped, producing
+  invalid JSON.  _unwrap_li_messages() detects this pattern and rewrites
+    "messages": "[{...}]"   →   "messages": [{...}]
+  using bracket-balancing before json.loads runs.
 """
 import json
 import re as _re
@@ -30,13 +31,52 @@ from infrastructure.session_store import session_store
 router = APIRouter(prefix="/waf", tags=["WAF"])
 
 
+def _unwrap_li_messages(text: str) -> str:
+    """Rewrite "messages": "[...]" → "messages": [...] when Log Insight embeds
+    a JSON array inside a quoted string without escaping the inner quotes."""
+    m = _re.search(r'"messages"\s*:\s*"\s*(\[)', text)
+    if not m:
+        return text
+    start = m.start(1)
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if esc:
+            esc = False
+            continue
+        if ch == "\\":
+            esc = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                end = i + 1
+                j = end
+                while j < len(text) and text[j] in " \t\r\n":
+                    j += 1
+                if j < len(text) and text[j] == '"':
+                    j += 1
+                return text[: m.start()] + '"messages": ' + text[start:end] + text[j:]
+    return text  # unbalanced — leave for json.loads to fail gracefully
+
+
 @router.post("/webhook", response_model=WAFRevokeResult)
 async def waf_webhook(request: Request) -> WAFRevokeResult:
-    # Parse raw body to survive Log Insight template artifacts:
-    # trailing commas before } or ] and unescaped ${messages} substitution.
+    # Parse raw body tolerating Log Insight template artifacts: trailing commas
+    # and the unescaped ${messages} array substitution.
     body = await request.body()
     text = body.decode("utf-8", errors="replace")
-    text = _re.sub(r",\s*([}\]])", r"\1", text)   # strip trailing commas
+    text = _re.sub(r",\s*([}\]])", r"\1", text)  # strip trailing commas
+    text = _unwrap_li_messages(text)              # unwrap quoted JSON array
     try:
         data = json.loads(text)
     except (json.JSONDecodeError, ValueError):
