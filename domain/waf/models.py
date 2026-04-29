@@ -1,5 +1,6 @@
 import json
 import re
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -77,9 +78,10 @@ def _extract_from_entry(entry: dict) -> _WAFFields:
     """Extract enrichment from one Log Insight message entry."""
     result = _WAFFields()
 
-    # Build a flat dict from the nested fields array if present
+    # Build a flat dict from the nested fields array if present.
+    # Log Insight sends the array as "staticFields"; some other formats use "fields".
     flat: dict = {}
-    raw_fields = entry.get("fields")
+    raw_fields = entry.get("staticFields") or entry.get("fields")
     if isinstance(raw_fields, list):
         flat = _named_fields_to_dict(raw_fields)
     # Also accept entries that are already flat dicts
@@ -161,7 +163,7 @@ class WAFWebhookPayload(BaseModel):
     alert_name: str | None = None
     search_period: str | None = None
     hit_operator: str | None = None
-    messages: object | None = None
+    messages: Any = None
 
     # Enrichment — auto-populated from WAF log fields or set by custom template
     target_app: str | None = None
