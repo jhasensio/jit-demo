@@ -2985,6 +2985,7 @@ async function refreshMappings() {
           <button class="btn-small btn-secondary" onclick="viewActiveIPs('${_esc(r.ipaddrgroup_ref || "")}','${_esc(r.ipaddrgroup_name || "")}')">View IPs</button>
           <button class="btn-small btn-secondary" onclick="syncMapping(${r.id},'${_esc(r.vs_uuid)}','${_esc(r.policy_uuid)}','${_esc(r.ipaddrgroup_ref || "")}')">Sync</button>
           <button class="btn-small btn-secondary" onclick="purgeSessionsForApp('${_esc(r.target_app)}')">Purge Sessions</button>
+          <button class="btn-small btn-danger" onclick="deleteMapping(${r.id})">Delete</button>
         </td>
       </tr>`;
     }).join("");
